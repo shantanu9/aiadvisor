@@ -4,767 +4,773 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>AI Advisor — GPU & Cost Sizing Engine</title>
-<meta name="description" content="Size your AI workload. Get GPU recommendations, VRAM requirements, and full cost breakdown instantly."/>
+<meta name="description" content="Size your AI workload in 4 steps. Get GPU recommendations, VRAM requirements, and full cost breakdown instantly."/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#080810;--s1:#0d0d1a;--s2:#12121f;--s3:#181828;--s4:#1e1e30;
-  --b:rgba(255,255,255,0.06);--b2:rgba(255,255,255,0.1);--b3:rgba(255,255,255,0.18);
-  --ink:#fff;--ink2:rgba(255,255,255,0.72);--ink3:rgba(255,255,255,0.42);--ink4:rgba(255,255,255,0.2);
-  --p:#8b7ff5;--p2:rgba(139,127,245,0.14);--p3:rgba(139,127,245,0.07);--pg:rgba(139,127,245,0.35);
-  --g:#00d4aa;--g2:rgba(0,212,170,0.13);--g3:rgba(0,212,170,0.06);
-  --o:#ff9500;--o2:rgba(255,149,0,0.13);
-  --r:8px;--rl:14px;--rxl:20px;
+  /* Airbnb-inspired tokens */
+  --rausch:#0066FF;
+  --rausch-light:#E8F0FF;
+  --rausch-dark:#0052CC;
+  --babu:#007A87;
+  --arches:#FC642D;
+  --hof:#484848;
+  --foggy:#767676;
+  --white:#FFFFFF;
+  --gray-50:#F7F7F7;
+  --gray-100:#EBEBEB;
+  --gray-200:#DDDDDD;
+  --gray-300:#C9C9C9;
+  --gray-800:#222222;
+  --green:#008A05;
+  --green-light:#E8F5E9;
+  --amber:#C45600;
+  --amber-light:#FFF3E0;
+  --blue:#0070C0;
+  --blue-light:#E3F2FD;
+
+  /* Spacing (8px grid) */
+  --sp1:4px;--sp2:8px;--sp3:12px;--sp4:16px;--sp5:20px;--sp6:24px;--sp8:32px;--sp10:40px;--sp12:48px;--sp16:64px;
+
+  /* Radii */
+  --r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:24px;--r-pill:9999px;
+
+  /* Shadows */
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.08);
+  --shadow-md:0 2px 8px rgba(0,0,0,0.1),0 0 0 1px rgba(0,0,0,0.04);
+  --shadow-lg:0 6px 20px rgba(0,0,0,0.12),0 2px 6px rgba(0,0,0,0.06);
+  --shadow-hover:0 8px 28px rgba(0,0,0,0.14),0 2px 8px rgba(0,0,0,0.08);
 }
+
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;line-height:1.6;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body{
+  background:var(--white);
+  color:var(--hof);
+  font-family:'Plus Jakarta Sans',-apple-system,'Helvetica Neue',sans-serif;
+  font-size:14px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
 
-/* MESH */
-.mesh{position:fixed;inset:0;pointer-events:none;z-index:0}
-.mesh::before{content:'';position:absolute;width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(139,127,245,0.1) 0%,transparent 70%);top:-250px;left:-150px;animation:d1 14s ease-in-out infinite alternate}
-.mesh::after{content:'';position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(0,212,170,0.07) 0%,transparent 70%);bottom:-150px;right:-100px;animation:d2 18s ease-in-out infinite alternate}
-@keyframes d1{to{transform:translate(80px,50px)}}
-@keyframes d2{to{transform:translate(-50px,-70px)}}
-.grid{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(255,255,255,0.016) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.016) 1px,transparent 1px);background-size:52px 52px}
+/* ── HEADER ── */
+header{
+  position:sticky;top:0;z-index:100;
+  background:var(--white);
+  border-bottom:1px solid var(--gray-200);
+  height:80px;
+  display:flex;align-items:center;
+  padding:0 var(--sp8);
+}
+.nav{width:100%;max-width:1120px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:var(--sp3)}
+.logo-mark{color:var(--rausch)}
+.logo-mark svg{width:32px;height:32px}
+.logo-text{font-size:18px;font-weight:700;color:var(--hof);letter-spacing:-0.3px}
+.logo-sub{font-size:11px;color:var(--foggy);font-weight:500;letter-spacing:0.3px;text-transform:uppercase;margin-top:1px}
+.nav-pill{font-size:13px;font-weight:600;color:var(--rausch);background:var(--rausch-light);padding:var(--sp2) var(--sp4);border-radius:var(--r-pill);border:none;display:flex;align-items:center;gap:6px}
+.nav-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+.back-link{font-size:13px;font-weight:500;color:var(--hof);text-decoration:underline;text-decoration-color:var(--gray-300);text-underline-offset:2px;transition:color .15s}
+.back-link:hover{color:var(--rausch)}
 
-/* HEADER */
-header{position:sticky;top:0;z-index:200;height:56px;display:flex;align-items:center;padding:0 2rem;background:rgba(8,8,16,0.88);backdrop-filter:blur(20px);border-bottom:1px solid var(--b)}
-.nav{width:100%;max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
-.logo{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.5px}
-.logo-icon{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#8b7ff5,#5b9cf5);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 20px rgba(139,127,245,0.3)}
-.live{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--g);background:var(--g3);border:1px solid rgba(0,212,170,0.18);padding:3px 10px;border-radius:20px;letter-spacing:0.5px;display:flex;align-items:center;gap:5px}
-.live::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--g);animation:bk 2s ease-in-out infinite}
-@keyframes bk{0%,100%{opacity:1}50%{opacity:0.25}}
-.back{font-size:12px;color:var(--ink3);text-decoration:none;padding:5px 12px;border:1px solid var(--b2);border-radius:20px;transition:all .15s}
-.back:hover{color:var(--ink);border-color:var(--b3)}
+/* ── HERO ── */
+.hero{
+  background:linear-gradient(180deg,var(--gray-50) 0%,var(--white) 100%);
+  padding:var(--sp16) var(--sp8) var(--sp12);
+  text-align:center;
+  border-bottom:1px solid var(--gray-200);
+}
+.hero-inner{max-width:640px;margin:0 auto}
+.hero-tag{display:inline-flex;align-items:center;gap:var(--sp2);font-size:12px;font-weight:600;color:var(--rausch);background:var(--rausch-light);padding:var(--sp1) var(--sp3);border-radius:var(--r-pill);margin-bottom:var(--sp6);letter-spacing:0.3px}
+h1{font-size:clamp(32px,4.5vw,48px);font-weight:700;color:var(--gray-800);letter-spacing:-1.5px;line-height:1.1;margin-bottom:var(--sp4)}
+.hero-desc{font-size:16px;color:var(--foggy);font-weight:400;line-height:1.7;max-width:480px;margin:0 auto var(--sp8)}
 
-/* HERO */
-.hero{position:relative;z-index:1;text-align:center;padding:4.5rem 2rem 3rem;max-width:720px;margin:0 auto}
-.chip{display:inline-flex;align-items:center;gap:6px;background:var(--p3);border:1px solid rgba(139,127,245,0.18);color:var(--p);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:5px 14px;border-radius:20px;margin-bottom:1.75rem}
-h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(34px,5vw,58px);font-weight:700;letter-spacing:-2.5px;line-height:1.04;margin-bottom:1.1rem;background:linear-gradient(135deg,#fff 40%,rgba(139,127,245,0.85) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.hero-sub{font-size:15px;color:var(--ink3);font-weight:300;line-height:1.75;max-width:500px;margin:0 auto}
+/* STEPS INDICATOR */
+.steps-indicator{display:flex;align-items:center;justify-content:center;gap:0;margin:0 auto;max-width:480px}
+.si-item{display:flex;align-items:center;gap:var(--sp2);font-size:12px;font-weight:600;color:var(--gray-300)}
+.si-item.done{color:var(--green)}
+.si-item.active{color:var(--rausch)}
+.si-num{width:24px;height:24px;border-radius:50%;border:2px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;background:var(--white)}
+.si-item.done .si-num{background:var(--green);border-color:var(--green);color:var(--white)}
+.si-item.active .si-num{background:var(--rausch);border-color:var(--rausch);color:var(--white)}
+.si-label{display:none}
+.si-line{flex:1;height:2px;background:var(--gray-200);min-width:32px}
+.si-item.done + .si-line{background:var(--green)}
 
-/* MAIN */
-.main{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:2.5rem 2rem 5rem;display:grid;grid-template-columns:1fr 400px;gap:2rem;align-items:start}
+/* ── MAIN LAYOUT ── */
+.main{max-width:1120px;margin:0 auto;padding:var(--sp10) var(--sp8) var(--sp16);display:grid;grid-template-columns:1fr 420px;gap:var(--sp8);align-items:start}
 
-/* FORM PANEL */
-.form-panel{display:flex;flex-direction:column;gap:1.25rem}
+/* ── FORM ── */
+.form-panel{display:flex;flex-direction:column;gap:var(--sp6)}
 
 /* STEP CARD */
-.step-card{background:var(--s1);border:1px solid var(--b);border-radius:var(--rl);overflow:hidden;transition:border-color .2s}
-.step-card.active{border-color:rgba(139,127,245,0.3)}
-.step-head{padding:1rem 1.25rem;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--b);cursor:pointer;user-select:none}
-.step-num{width:26px;height:26px;border-radius:7px;background:var(--p3);border:1px solid rgba(139,127,245,0.2);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--p);font-weight:600;flex-shrink:0;transition:all .2s}
-.step-card.done .step-num{background:var(--g2);border-color:rgba(0,212,170,0.3);color:var(--g)}
-.step-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;color:var(--ink)}
-.step-subtitle{font-size:12px;color:var(--ink3);margin-left:auto}
-.step-body{padding:1.25rem;display:none}
+.step-card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--r-xl);box-shadow:var(--shadow-sm);transition:box-shadow .2s,border-color .2s;overflow:hidden}
+.step-card.active{border-color:var(--gray-300);box-shadow:var(--shadow-md)}
+.step-card.done{border-color:var(--gray-200)}
+.step-head{padding:var(--sp6);display:flex;align-items:center;gap:var(--sp4);cursor:pointer;user-select:none}
+.step-head:hover{background:var(--gray-50)}
+.step-num-circle{width:36px;height:36px;border-radius:50%;background:var(--gray-100);border:2px solid var(--gray-200);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--foggy);flex-shrink:0;transition:all .2s}
+.step-card.active .step-num-circle{background:var(--rausch-light);border-color:var(--rausch);color:var(--rausch)}
+.step-card.done .step-num-circle{background:var(--green);border-color:var(--green);color:var(--white)}
+.step-meta{flex:1}
+.step-title{font-size:16px;font-weight:600;color:var(--gray-800);letter-spacing:-0.2px}
+.step-sub{font-size:13px;color:var(--foggy);margin-top:1px}
+.step-check{font-size:18px;color:var(--green)}
+
+/* STEP BODY */
+.step-body{display:none;padding:0 var(--sp6) var(--sp6);border-top:1px solid var(--gray-100)}
 .step-card.active .step-body{display:block}
+.step-body-inner{padding-top:var(--sp5)}
+
+/* SECTION LABEL */
+.sec-label{font-size:12px;font-weight:700;color:var(--hof);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:var(--sp3)}
 
 /* OPTION GRID */
-.opt-grid{display:grid;gap:8px}
-.opt-grid.cols2{grid-template-columns:1fr 1fr}
-.opt-grid.cols3{grid-template-columns:repeat(3,1fr)}
-.opt-btn{background:var(--s2);border:1.5px solid var(--b);border-radius:var(--r);padding:10px 14px;cursor:pointer;transition:all .15s;text-align:left;color:var(--ink2);display:flex;flex-direction:column;gap:3px}
-.opt-btn:hover{border-color:var(--b3);background:var(--s3)}
-.opt-btn.selected{border-color:var(--p);background:var(--p3);color:var(--ink)}
-.opt-label{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600}
-.opt-desc{font-size:11px;color:var(--ink3);line-height:1.4}
-.opt-btn.selected .opt-desc{color:rgba(139,127,245,0.7)}
+.opt-grid{display:grid;gap:var(--sp2);margin-bottom:var(--sp5)}
+.opt-grid.c2{grid-template-columns:1fr 1fr}
+.opt-grid.c3{grid-template-columns:repeat(3,1fr)}
+.opt-btn{background:var(--white);border:1.5px solid var(--gray-200);border-radius:var(--r-lg);padding:var(--sp4);cursor:pointer;transition:all .15s;text-align:left;display:flex;flex-direction:column;gap:var(--sp1);position:relative}
+.opt-btn:hover{border-color:var(--gray-800);box-shadow:var(--shadow-sm)}
+.opt-btn.sel{border-color:var(--gray-800);background:var(--gray-50);box-shadow:var(--shadow-sm)}
+.opt-btn.sel::after{content:'✓';position:absolute;top:var(--sp2);right:var(--sp3);font-size:12px;font-weight:700;color:var(--gray-800)}
+.opt-icon{font-size:20px;margin-bottom:var(--sp1)}
+.opt-name{font-size:14px;font-weight:600;color:var(--gray-800)}
+.opt-hint{font-size:12px;color:var(--foggy);line-height:1.4}
 
 /* SLIDER */
-.slider-wrap{margin-top:0.5rem}
-.slider-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.6rem}
-.slider-label{font-size:12px;color:var(--ink3)}
-.slider-val{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--p)}
-.slider-val .unit{font-size:11px;color:var(--ink3);font-weight:400;margin-left:2px}
-input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:var(--s3);outline:none;cursor:pointer}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--p);cursor:pointer;box-shadow:0 0 10px rgba(139,127,245,0.4)}
-input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--p);cursor:pointer;border:none}
-.slider-marks{display:flex;justify-content:space-between;margin-top:5px}
-.slider-marks span{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ink4)}
-
-/* SELECT */
-select{width:100%;background:var(--s2);border:1.5px solid var(--b);border-radius:var(--r);color:var(--ink);font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;cursor:pointer;-webkit-appearance:none;appearance:none;transition:border-color .15s}
-select:focus{border-color:rgba(139,127,245,0.5)}
-.select-wrap{position:relative}
-.select-wrap::after{content:'▾';position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--ink3);pointer-events:none;font-size:11px}
-
-/* TAGS (multi select) */
-.tag-grid{display:flex;flex-wrap:wrap;gap:6px}
-.tag-btn{font-size:11px;font-family:'JetBrains Mono',monospace;padding:5px 12px;border-radius:6px;border:1px solid var(--b2);color:var(--ink3);background:var(--s2);cursor:pointer;transition:all .15s;letter-spacing:0.3px}
-.tag-btn:hover{border-color:var(--b3);color:var(--ink)}
-.tag-btn.selected{background:var(--p2);border-color:rgba(139,127,245,0.4);color:var(--p)}
-
-/* FIELD */
-.field{margin-bottom:1rem}
-.field:last-child{margin-bottom:0}
-.field-label{font-size:11px;color:var(--ink3);margin-bottom:6px;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;text-transform:uppercase}
-
-/* CALCULATE BTN */
-.calc-btn{width:100%;padding:13px;border-radius:var(--r);background:linear-gradient(135deg,var(--p),#5b9cf5);border:none;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:opacity .15s;letter-spacing:-0.3px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 20px rgba(139,127,245,0.35)}
-.calc-btn:hover{opacity:0.88}
-.calc-btn:disabled{opacity:0.4;cursor:not-allowed}
+.slider-section{margin-bottom:var(--sp5)}
+.slider-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp2)}
+.slider-label{font-size:14px;font-weight:500;color:var(--hof)}
+.slider-display{font-size:20px;font-weight:700;color:var(--gray-800);letter-spacing:-0.5px}
+.slider-display .unit{font-size:13px;font-weight:400;color:var(--foggy);margin-left:3px}
+input[type=range]{
+  width:100%;-webkit-appearance:none;appearance:none;
+  height:4px;border-radius:var(--r-pill);
+  background:var(--gray-200);outline:none;cursor:pointer;margin:var(--sp2) 0;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:24px;height:24px;border-radius:50%;
+  background:var(--gray-800);cursor:pointer;
+  box-shadow:0 2px 6px rgba(0,0,0,0.2);
+  border:3px solid var(--white);
+}
+input[type=range]::-moz-range-thumb{
+  width:24px;height:24px;border-radius:50%;
+  background:var(--gray-800);cursor:pointer;border:3px solid var(--white);
+  box-shadow:0 2px 6px rgba(0,0,0,0.2);
+}
+.slider-marks{display:flex;justify-content:space-between}
+.slider-marks span{font-size:11px;color:var(--gray-300);font-weight:500}
 
 /* STEP NAV */
-.step-nav{display:flex;gap:8px;margin-top:1rem}
-.snav{flex:1;padding:9px;border-radius:var(--r);border:1px solid var(--b2);background:var(--s2);color:var(--ink3);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
-.snav:hover{border-color:var(--b3);color:var(--ink)}
-.snav.next{background:var(--p2);border-color:rgba(139,127,245,0.3);color:var(--p)}
-.snav.next:hover{background:var(--p);color:#fff}
+.step-nav{display:flex;gap:var(--sp3);margin-top:var(--sp6)}
+.btn-back{flex:1;padding:var(--sp3) var(--sp6);border-radius:var(--r-pill);border:1.5px solid var(--gray-800);background:var(--white);font-size:14px;font-weight:600;color:var(--gray-800);cursor:pointer;transition:all .15s}
+.btn-back:hover{background:var(--gray-50)}
+.btn-next{flex:2;padding:var(--sp3) var(--sp6);border-radius:var(--r-pill);border:none;background:var(--gray-800);font-size:14px;font-weight:600;color:var(--white);cursor:pointer;transition:all .15s}
+.btn-next:hover{background:var(--rausch)}
 
-/* PROGRESS */
-.progress-bar{height:2px;background:var(--b2);border-radius:1px;margin:0 1.25rem;overflow:hidden}
-.progress-fill{height:100%;background:linear-gradient(90deg,var(--p),var(--g));border-radius:1px;transition:width .4s ease}
+/* CALCULATE BTN */
+.btn-calc{
+  width:100%;padding:var(--sp4) var(--sp8);
+  border-radius:var(--r-pill);border:none;
+  background:var(--rausch);font-size:16px;font-weight:700;
+  color:var(--white);cursor:pointer;
+  transition:all .2s;margin-top:var(--sp5);
+  box-shadow:0 4px 16px rgba(0,102,255,0.25);
+  letter-spacing:-0.2px;
+}
+.btn-calc:hover{background:var(--rausch-dark);box-shadow:0 6px 24px rgba(0,102,255,0.35);transform:translateY(-1px)}
+.btn-calc:active{transform:translateY(0)}
 
-/* RESULTS PANEL */
-.result-panel{position:sticky;top:72px;display:flex;flex-direction:column;gap:1rem}
-.empty-box{background:var(--s1);border:1px solid var(--b);border-radius:var(--rl);padding:3rem 2rem;text-align:center}
-.empty-icon{font-size:44px;margin-bottom:1rem;opacity:0.35}
-.empty-t{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;color:var(--ink3);margin-bottom:0.4rem}
-.empty-s{font-size:12px;color:var(--ink4);line-height:1.6}
+/* ── RESULT PANEL ── */
+.result-panel{position:sticky;top:96px;display:flex;flex-direction:column;gap:var(--sp4)}
+
+/* EMPTY STATE */
+.empty-state{
+  background:var(--gray-50);
+  border:2px dashed var(--gray-200);
+  border-radius:var(--r-xl);
+  padding:var(--sp12) var(--sp8);
+  text-align:center;
+}
+.empty-icon{font-size:48px;margin-bottom:var(--sp4);display:block}
+.empty-title{font-size:16px;font-weight:600;color:var(--hof);margin-bottom:var(--sp2)}
+.empty-desc{font-size:13px;color:var(--foggy);line-height:1.6;max-width:260px;margin:0 auto}
 
 /* RESULT CARDS */
-.rc{background:var(--s1);border:1px solid var(--b);border-radius:var(--rl);overflow:hidden;animation:fadeUp .3s ease}
-@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-.rc-head{padding:0.85rem 1.1rem;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between}
-.rc-title{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;display:flex;align-items:center;gap:6px}
-.rc-dot{width:6px;height:6px;border-radius:50%}
-.dot-p{background:var(--p);box-shadow:0 0 6px var(--pg)}
-.dot-g{background:var(--g)}
-.dot-o{background:var(--o)}
-.rc-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:5px}
-.bp{background:var(--p2);color:var(--p)}
-.bg{background:var(--g2);color:var(--g)}
-.bo{background:var(--o2);color:var(--o)}
+.rc{
+  background:var(--white);
+  border:1px solid var(--gray-200);
+  border-radius:var(--r-xl);
+  box-shadow:var(--shadow-sm);
+  overflow:hidden;
+  animation:fadeUp .3s ease;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.rc-head{padding:var(--sp4) var(--sp5);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--gray-100)}
+.rc-title{font-size:12px;font-weight:700;color:var(--hof);text-transform:uppercase;letter-spacing:0.8px}
+.badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill)}
+.badge-red{background:var(--rausch-light);color:var(--rausch)}
+.badge-green{background:var(--green-light);color:var(--green)}
+.badge-amber{background:var(--amber-light);color:var(--amber)}
+.badge-blue{background:var(--blue-light);color:var(--blue)}
 
 /* VRAM BLOCK */
-.vb{padding:1.1rem}
-.vb-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem}
-.vb-cell{background:var(--s2);border-radius:var(--r);padding:10px 12px;border:1px solid var(--b)}
-.vb-label{font-size:10px;color:var(--ink4);font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;margin-bottom:3px}
-.vb-val{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-0.5px}
-.vb-val .unit{font-size:11px;font-weight:400;color:var(--ink3);margin-left:2px}
-.bar-wrap{background:var(--s3);border-radius:3px;height:5px;overflow:hidden;margin-bottom:4px}
-.bar-fill{height:100%;border-radius:3px;transition:width 1s ease}
-.bar-p{background:linear-gradient(90deg,var(--g),var(--p))}
-.bar-note{font-size:11px;color:var(--ink3);line-height:1.5}
+.vb{padding:var(--sp5)}
+.vb-metrics{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp3);margin-bottom:var(--sp4)}
+.vb-cell{background:var(--gray-50);border-radius:var(--r-md);padding:var(--sp3) var(--sp4);border:1px solid var(--gray-100)}
+.vb-lbl{font-size:11px;font-weight:600;color:var(--foggy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px}
+.vb-val{font-size:22px;font-weight:700;color:var(--gray-800);letter-spacing:-0.5px}
+.vb-val .u{font-size:12px;font-weight:400;color:var(--foggy);margin-left:2px}
+.bar-track{background:var(--gray-100);border-radius:var(--r-pill);height:6px;overflow:hidden;margin-bottom:var(--sp2)}
+.bar-fill{height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--green),var(--rausch));transition:width 1s ease}
+.bar-label{font-size:12px;color:var(--foggy)}
+.model-rec{background:var(--rausch-light);border-radius:var(--r-md);padding:var(--sp3) var(--sp4);margin-top:var(--sp3);border-left:3px solid var(--rausch)}
+.model-rec-label{font-size:11px;font-weight:700;color:var(--rausch);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px}
+.model-rec-val{font-size:13px;font-weight:600;color:var(--gray-800)}
 
 /* GPU CARDS */
-.gpu-list{padding:0 1.1rem 1.1rem;display:flex;flex-direction:column;gap:7px}
-.gc{background:var(--s2);border:1.5px solid var(--b);border-radius:var(--r);padding:10px 12px;transition:border-color .15s}
-.gc.best{border-color:rgba(0,212,170,0.3);background:rgba(0,212,170,0.04)}
-.gc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
-.gc-name{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;color:var(--ink)}
-.gc-fit{font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:0.5px}
-.f-best{background:var(--g2);color:var(--g)}
-.f-good{background:var(--p2);color:var(--p)}
-.f-budget{background:var(--o2);color:var(--o)}
-.gc-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
-.gm{background:var(--s3);border-radius:5px;padding:5px 7px}
-.gm-l{font-size:9px;color:var(--ink4);margin-bottom:1px}
-.gm-v{font-size:11px;font-weight:500;color:var(--ink2)}
-.score-bar-wrap{background:var(--s3);border-radius:2px;height:3px;margin-top:6px;overflow:hidden}
-.score-bar{height:100%;border-radius:2px;transition:width 0.8s ease}
+.gpu-stack{padding:0 var(--sp4) var(--sp4);display:flex;flex-direction:column;gap:var(--sp3)}
+.gc{background:var(--white);border:1.5px solid var(--gray-200);border-radius:var(--r-lg);padding:var(--sp4);transition:all .15s}
+.gc.best{border-color:var(--gray-800);box-shadow:var(--shadow-sm)}
+.gc:hover{box-shadow:var(--shadow-md)}
+.gc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--sp3);margin-bottom:var(--sp3)}
+.gc-name{font-size:13px;font-weight:700;color:var(--gray-800);line-height:1.3}
+.gc-count{font-size:11px;color:var(--foggy);font-weight:500}
+.fit-chip{font-size:10px;font-weight:700;padding:2px 8px;border-radius:var(--r-pill);text-transform:uppercase;letter-spacing:0.5px;flex-shrink:0}
+.fit-best{background:var(--gray-800);color:var(--white)}
+.fit-good{background:var(--gray-100);color:var(--hof)}
+.fit-budget{background:var(--amber-light);color:var(--amber)}
+.gc-row{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp2)}
+.gm{background:var(--gray-50);border-radius:var(--r-sm);padding:var(--sp2) var(--sp3)}
+.gm-l{font-size:10px;font-weight:600;color:var(--foggy);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:1px}
+.gm-v{font-size:13px;font-weight:700;color:var(--gray-800)}
+.score-track{background:var(--gray-100);border-radius:var(--r-pill);height:3px;margin-top:var(--sp3);overflow:hidden}
+.score-fill{height:100%;border-radius:var(--r-pill);background:var(--gray-800);transition:width .8s ease}
+.gc.best .score-fill{background:var(--rausch)}
 
-/* COST */
-.cost-b{padding:1.1rem}
-.cost-row{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:8px}
-.cost-cell{background:var(--s2);border-radius:var(--r);padding:9px 11px;border:1px solid var(--b)}
-.cc-l{font-size:9px;color:var(--ink4);font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;margin-bottom:3px}
-.cc-v{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:var(--ink)}
-.tco-row{display:flex;align-items:center;gap:12px;background:var(--s2);border:1px solid var(--b);border-radius:var(--r);padding:10px 12px}
-.tco-num{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;color:var(--o);flex-shrink:0;letter-spacing:-1px}
-.tco-text{font-size:11px;color:var(--ink3);line-height:1.5}
-.tco-text strong{color:var(--ink);display:block;margin-bottom:1px}
+/* COST BLOCK */
+.cost-b{padding:var(--sp5)}
+.cost-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp3);margin-bottom:var(--sp4)}
+.cost-cell{background:var(--gray-50);border-radius:var(--r-md);padding:var(--sp3) var(--sp4);border:1px solid var(--gray-100);text-align:center}
+.cc-l{font-size:11px;font-weight:600;color:var(--foggy);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px}
+.cc-v{font-size:18px;font-weight:700;color:var(--gray-800);letter-spacing:-0.5px}
+.tco-box{background:var(--amber-light);border-radius:var(--r-lg);padding:var(--sp4);display:flex;align-items:center;gap:var(--sp4);border:1px solid rgba(196,86,0,0.15)}
+.tco-num{font-size:32px;font-weight:700;color:var(--amber);letter-spacing:-1px;flex-shrink:0}
+.tco-info{}
+.tco-head{font-size:13px;font-weight:700;color:var(--gray-800);margin-bottom:2px}
+.tco-note{font-size:12px;color:var(--foggy);line-height:1.5}
 
-/* RECOMMENDATION */
-.rec-b{padding:1.1rem}
-.rec-text{font-size:12px;color:var(--ink2);line-height:1.7;background:var(--s2);border-radius:var(--r);padding:10px 12px;border:1px solid var(--b);margin-bottom:0.75rem}
-.tag-row{display:flex;flex-wrap:wrap;gap:5px}
-.tag-pill{font-family:'JetBrains Mono',monospace;font-size:9px;padding:3px 9px;border-radius:4px;letter-spacing:0.5px}
-.tp{background:var(--p2);color:var(--p)}
-.tg{background:var(--g2);color:var(--g)}
-.to{background:var(--o2);color:var(--o)}
+/* SUMMARY TAGS */
+.sum-b{padding:var(--sp4) var(--sp5)}
+.tag-row{display:flex;flex-wrap:wrap;gap:var(--sp2);margin-bottom:var(--sp4)}
+.stag{font-size:12px;font-weight:500;padding:4px 12px;border-radius:var(--r-pill);background:var(--gray-100);color:var(--hof);border:1px solid var(--gray-200)}
 
 /* EXPORT */
-.exp-row{padding:0.75rem 1.1rem;border-top:1px solid var(--b);display:flex;gap:6px}
-.eb{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:500;padding:5px 12px;border-radius:5px;border:1px solid var(--b2);color:var(--ink3);background:transparent;cursor:pointer;transition:all .15s;letter-spacing:0.5px}
-.eb:hover{border-color:var(--p);color:var(--p);background:var(--p3)}
+.exp-row{padding:var(--sp3) var(--sp5);border-top:1px solid var(--gray-100);display:flex;gap:var(--sp2)}
+.eb{font-size:12px;font-weight:600;padding:var(--sp2) var(--sp4);border-radius:var(--r-pill);border:1.5px solid var(--gray-200);background:var(--white);color:var(--hof);cursor:pointer;transition:all .15s}
+.eb:hover{border-color:var(--gray-800);color:var(--gray-800)}
 
 /* RESET */
-.reset-btn{width:100%;padding:10px;border-radius:var(--r);border:1px solid var(--b2);background:transparent;color:var(--ink3);font-size:13px;cursor:pointer;transition:all .15s;margin-top:0.5rem}
-.reset-btn:hover{border-color:var(--b3);color:var(--ink)}
+.btn-reset{width:100%;padding:var(--sp3);border-radius:var(--r-pill);border:1.5px solid var(--gray-200);background:var(--white);font-size:13px;font-weight:600;color:var(--foggy);cursor:pointer;transition:all .15s;margin-top:var(--sp2)}
+.btn-reset:hover{border-color:var(--gray-800);color:var(--gray-800)}
 
-footer{position:relative;z-index:1;border-top:1px solid var(--b);padding:1.5rem 2rem;text-align:center}
-footer p{font-size:11px;color:var(--ink4)}
-footer a{color:var(--p);text-decoration:none}
+/* DIVIDER */
+.divider{height:1px;background:var(--gray-100);margin:var(--sp4) 0}
 
-@media(max-width:900px){
+/* FOOTER */
+footer{background:var(--gray-50);border-top:1px solid var(--gray-200);padding:var(--sp8);text-align:center}
+footer p{font-size:13px;color:var(--foggy)}
+footer a{color:var(--rausch);text-decoration:none;font-weight:600}
+
+/* RESPONSIVE */
+@media(max-width:960px){
   .main{grid-template-columns:1fr}
   .result-panel{position:static}
 }
-@media(max-width:600px){
-  .hero{padding:3rem 1.5rem 2rem}
-  .main{padding:1.5rem 1rem 3rem}
-  header{padding:0 1rem}
-  .opt-grid.cols3{grid-template-columns:1fr 1fr}
-  .gc-metrics{grid-template-columns:repeat(2,1fr)}
-  .cost-row{grid-template-columns:1fr 1fr}
+@media(max-width:640px){
+  .hero{padding:var(--sp10) var(--sp4) var(--sp8)}
+  header{padding:0 var(--sp4);height:64px}
+  .main{padding:var(--sp6) var(--sp4) var(--sp10)}
+  .opt-grid.c3{grid-template-columns:1fr 1fr}
+  .cost-grid{grid-template-columns:1fr 1fr}
+  .gc-row{grid-template-columns:1fr 1fr}
+  .si-label{display:none}
 }
 </style>
 </head>
 <body>
-<div class="mesh"></div>
-<div class="grid"></div>
 
+<!-- HEADER -->
 <header>
   <nav class="nav">
     <div class="logo">
-      <div class="logo-icon">⚡</div>
+      <div class="logo-mark">
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 4C16 4 6 14 6 20C6 25.5 10.5 30 16 30C21.5 30 26 25.5 26 20C26 14 16 4 16 4Z" fill="currentColor"/>
+          <path d="M16 14C16 14 11 19.5 11 22.5C11 25 13.2 27 16 27C18.8 27 21 25 21 22.5C21 19.5 16 14 16 14Z" fill="white"/>
+        </svg>
+      </div>
       <div>
-        <div>AI Advisor</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ink4);letter-spacing:1px">GPU SIZING ENGINE</div>
+        <div class="logo-text">AI Advisor</div>
+        <div class="logo-sub">GPU Sizing Engine</div>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <span class="live">Sizing Engine v1.0</span>
-      <a href="https://shantanu9.github.io" class="back">← Portfolio</a>
+    <div style="display:flex;align-items:center;gap:16px">
+      <span class="nav-pill">Live Sizing Tool</span>
+      <a href="https://shantanu9.github.io" class="back-link">← Portfolio</a>
     </div>
   </nav>
 </header>
 
+<!-- HERO -->
 <div class="hero">
-  <div class="chip">✦ AI Infrastructure Sizing Engine</div>
-  <h1>Size your AI workload.<br/>In 4 steps.</h1>
-  <p class="hero-sub">Answer a few structured questions about your workload. The engine calculates VRAM, recommends GPUs, and shows you full cost breakdown — no guesswork.</p>
+  <div class="hero-inner">
+    <div class="hero-tag">✦ Free AI Infrastructure Tool</div>
+    <h1>Find the right GPU<br/>for your AI workload.</h1>
+    <p class="hero-desc">Answer 4 simple questions about your workload. Get GPU recommendations, VRAM requirements, cloud costs, and full TCO — instantly, no signup needed.</p>
+
+    <div class="steps-indicator" id="stepsIndicator">
+      <div class="si-item active" id="si1"><div class="si-num">1</div><span class="si-label">Workload</span></div>
+      <div class="si-line" id="sl1"></div>
+      <div class="si-item" id="si2"><div class="si-num">2</div><span class="si-label">Model</span></div>
+      <div class="si-line" id="sl2"></div>
+      <div class="si-item" id="si3"><div class="si-num">3</div><span class="si-label">Infra</span></div>
+      <div class="si-line" id="sl3"></div>
+      <div class="si-item" id="si4"><div class="si-num">4</div><span class="si-label">Budget</span></div>
+    </div>
+  </div>
 </div>
 
+<!-- MAIN -->
 <div class="main">
 
-  <!-- LEFT: FORM -->
+  <!-- FORM -->
   <div class="form-panel">
 
-    <!-- STEP 1: WORKLOAD TYPE -->
+    <!-- STEP 1 -->
     <div class="step-card active" id="step1">
       <div class="step-head" onclick="toggleStep(1)">
-        <div class="step-num" id="sn1">1</div>
-        <div>
-          <div class="step-title">Workload Type</div>
+        <div class="step-num-circle" id="sn1">1</div>
+        <div class="step-meta">
+          <div class="step-title">What are you building?</div>
+          <div class="step-sub" id="ss1">Select your workload type</div>
         </div>
-        <div class="step-subtitle" id="ss1">Select one</div>
+        <span class="step-check" id="sc1" style="display:none">✓</span>
       </div>
-      <div class="progress-bar"><div class="progress-fill" id="pb1" style="width:0%"></div></div>
-      <div class="step-body" id="sb1">
-        <div class="opt-grid cols2" style="margin-bottom:1rem">
-          <button class="opt-btn" onclick="selectOpt('workload','inference',this)">
-            <span class="opt-label">🧠 Inference</span>
-            <span class="opt-desc">Serve a model to users, APIs, or apps</span>
-          </button>
-          <button class="opt-btn" onclick="selectOpt('workload','finetuning',this)">
-            <span class="opt-label">🔬 Fine-tuning</span>
-            <span class="opt-desc">Train/adapt a model on custom data</span>
-          </button>
-          <button class="opt-btn" onclick="selectOpt('workload','rag',this)">
-            <span class="opt-label">📚 RAG Pipeline</span>
-            <span class="opt-desc">Retrieval-augmented generation</span>
-          </button>
-          <button class="opt-btn" onclick="selectOpt('workload','embeddings',this)">
-            <span class="opt-label">⚙️ Embeddings</span>
-            <span class="opt-desc">Vectorize text at scale</span>
-          </button>
+      <div class="step-body">
+        <div class="step-body-inner">
+          <div class="opt-grid c2">
+            <button class="opt-btn" onclick="selectOpt('workload','inference',this)" aria-pressed="false">
+              <span class="opt-icon">🧠</span>
+              <span class="opt-name">Inference</span>
+              <span class="opt-hint">Serve a model to users or applications in real-time</span>
+            </button>
+            <button class="opt-btn" onclick="selectOpt('workload','finetuning',this)" aria-pressed="false">
+              <span class="opt-icon">🔬</span>
+              <span class="opt-name">Fine-tuning</span>
+              <span class="opt-hint">Train or adapt a model on your own dataset</span>
+            </button>
+            <button class="opt-btn" onclick="selectOpt('workload','rag',this)" aria-pressed="false">
+              <span class="opt-icon">📚</span>
+              <span class="opt-name">RAG Pipeline</span>
+              <span class="opt-hint">Retrieval-augmented generation over your documents</span>
+            </button>
+            <button class="opt-btn" onclick="selectOpt('workload','embeddings',this)" aria-pressed="false">
+              <span class="opt-icon">⚙️</span>
+              <span class="opt-name">Embeddings</span>
+              <span class="opt-hint">Vectorize large volumes of text at scale</span>
+            </button>
+          </div>
+          <div class="step-nav">
+            <button class="btn-next" onclick="nextStep(1)">Continue →</button>
+          </div>
         </div>
-        <div class="step-nav"><button class="snav next" onclick="nextStep(1)">Next →</button></div>
       </div>
     </div>
 
-    <!-- STEP 2: MODEL & SCALE -->
+    <!-- STEP 2 -->
     <div class="step-card" id="step2">
       <div class="step-head" onclick="toggleStep(2)">
-        <div class="step-num" id="sn2">2</div>
-        <div><div class="step-title">Model & Scale</div></div>
-        <div class="step-subtitle" id="ss2">Model size + load</div>
+        <div class="step-num-circle" id="sn2">2</div>
+        <div class="step-meta">
+          <div class="step-title">Model size & scale</div>
+          <div class="step-sub" id="ss2">Parameters, precision, and load</div>
+        </div>
+        <span class="step-check" id="sc2" style="display:none">✓</span>
       </div>
-      <div class="progress-bar"><div class="progress-fill" id="pb2" style="width:0%"></div></div>
-      <div class="step-body" id="sb2">
+      <div class="step-body">
+        <div class="step-body-inner">
 
-        <div class="field">
-          <div class="field-label">Model Size</div>
-          <div class="opt-grid cols3">
-            <button class="opt-btn" onclick="selectOpt('modelSize','1-3B',this)"><span class="opt-label">1–3B</span><span class="opt-desc">Small / edge</span></button>
-            <button class="opt-btn" onclick="selectOpt('modelSize','7B',this)"><span class="opt-label">7B</span><span class="opt-desc">Efficient</span></button>
-            <button class="opt-btn" onclick="selectOpt('modelSize','13B',this)"><span class="opt-label">13B</span><span class="opt-desc">Balanced</span></button>
-            <button class="opt-btn" onclick="selectOpt('modelSize','34B',this)"><span class="opt-label">34B</span><span class="opt-desc">High quality</span></button>
-            <button class="opt-btn" onclick="selectOpt('modelSize','70B',this)"><span class="opt-label">70B</span><span class="opt-desc">SOTA</span></button>
-            <button class="opt-btn" onclick="selectOpt('modelSize','>70B',this)"><span class="opt-label">>70B</span><span class="opt-desc">Frontier</span></button>
+          <div class="sec-label">Model Parameter Count</div>
+          <div class="opt-grid c3" style="margin-bottom:var(--sp6)">
+            <button class="opt-btn" onclick="selectOpt('modelSize','1-3B',this)"><span class="opt-name">1–3B</span><span class="opt-hint">Small / edge models</span></button>
+            <button class="opt-btn" onclick="selectOpt('modelSize','7B',this)"><span class="opt-name">7B</span><span class="opt-hint">Efficient, fast</span></button>
+            <button class="opt-btn" onclick="selectOpt('modelSize','13B',this)"><span class="opt-name">13B</span><span class="opt-hint">Balanced quality</span></button>
+            <button class="opt-btn" onclick="selectOpt('modelSize','34B',this)"><span class="opt-name">34B</span><span class="opt-hint">High quality</span></button>
+            <button class="opt-btn" onclick="selectOpt('modelSize','70B',this)"><span class="opt-name">70B</span><span class="opt-hint">SOTA performance</span></button>
+            <button class="opt-btn" onclick="selectOpt('modelSize','>70B',this)"><span class="opt-name">>70B</span><span class="opt-hint">Frontier scale</span></button>
           </div>
-        </div>
 
-        <div class="field">
-          <div class="field-label">Precision / Quantization</div>
-          <div class="opt-grid cols2">
-            <button class="opt-btn" onclick="selectOpt('precision','fp16',this)"><span class="opt-label">FP16</span><span class="opt-desc">Full precision</span></button>
-            <button class="opt-btn" onclick="selectOpt('precision','int8',this)"><span class="opt-label">INT8</span><span class="opt-desc">~2x memory saving</span></button>
-            <button class="opt-btn" onclick="selectOpt('precision','qlora',this)"><span class="opt-label">QLoRA 4-bit</span><span class="opt-desc">~4x memory saving</span></button>
-            <button class="opt-btn" onclick="selectOpt('precision','lora',this)"><span class="opt-label">LoRA</span><span class="opt-desc">~2x memory saving</span></button>
+          <div class="sec-label">Precision / Quantization</div>
+          <div class="opt-grid c2" style="margin-bottom:var(--sp6)">
+            <button class="opt-btn" onclick="selectOpt('precision','fp16',this)"><span class="opt-name">FP16 — Full precision</span><span class="opt-hint">Best quality, highest VRAM</span></button>
+            <button class="opt-btn" onclick="selectOpt('precision','int8',this)"><span class="opt-name">INT8 — 8-bit</span><span class="opt-hint">~2× memory saving</span></button>
+            <button class="opt-btn" onclick="selectOpt('precision','qlora',this)"><span class="opt-name">QLoRA — 4-bit</span><span class="opt-hint">~4× memory saving</span></button>
+            <button class="opt-btn" onclick="selectOpt('precision','lora',this)"><span class="opt-name">LoRA — Adapter</span><span class="opt-hint">~2× memory saving</span></button>
           </div>
-        </div>
 
-        <div class="field">
-          <div class="field-label" id="scaleLabel">Concurrent Users</div>
-          <div class="slider-wrap">
+          <div class="slider-section">
             <div class="slider-top">
-              <span class="slider-label" id="scaleDesc">Simultaneous requests</span>
-              <span class="slider-val"><span id="scaleVal">10</span><span class="unit" id="scaleUnit">users</span></span>
+              <div class="slider-label" id="scaleLabel">Concurrent Users</div>
+              <div class="slider-display"><span id="scaleVal">10</span><span class="unit" id="scaleUnit"> users</span></div>
             </div>
-            <input type="range" id="scaleSlider" min="1" max="100" value="10" oninput="updateSlider('scale',this.value)"/>
+            <input type="range" id="scaleSlider" min="1" max="100" value="10" oninput="updateSlider('scale',this.value)" aria-label="Scale"/>
             <div class="slider-marks"><span>1</span><span>25</span><span>50</span><span>75</span><span>100+</span></div>
           </div>
-        </div>
 
-        <div class="field">
-          <div class="field-label">Context / Sequence Length</div>
-          <div class="opt-grid cols3">
-            <button class="opt-btn" onclick="selectOpt('context','2k',this)"><span class="opt-label">2K</span><span class="opt-desc">Short</span></button>
-            <button class="opt-btn" onclick="selectOpt('context','8k',this)"><span class="opt-label">8K</span><span class="opt-desc">Medium</span></button>
-            <button class="opt-btn" onclick="selectOpt('context','32k',this)"><span class="opt-label">32K</span><span class="opt-desc">Long</span></button>
-            <button class="opt-btn" onclick="selectOpt('context','64k',this)"><span class="opt-label">64K</span><span class="opt-desc">Very long</span></button>
-            <button class="opt-btn" onclick="selectOpt('context','128k',this)"><span class="opt-label">128K</span><span class="opt-desc">Max context</span></button>
+          <div class="sec-label">Context / Sequence Length</div>
+          <div class="opt-grid c3">
+            <button class="opt-btn" onclick="selectOpt('context','2k',this)"><span class="opt-name">2K tokens</span></button>
+            <button class="opt-btn" onclick="selectOpt('context','8k',this)"><span class="opt-name">8K tokens</span></button>
+            <button class="opt-btn" onclick="selectOpt('context','32k',this)"><span class="opt-name">32K tokens</span></button>
+            <button class="opt-btn" onclick="selectOpt('context','64k',this)"><span class="opt-name">64K tokens</span></button>
+            <button class="opt-btn" onclick="selectOpt('context','128k',this)"><span class="opt-name">128K tokens</span></button>
           </div>
-        </div>
 
-        <div class="step-nav">
-          <button class="snav" onclick="prevStep(2)">← Back</button>
-          <button class="snav next" onclick="nextStep(2)">Next →</button>
+          <div class="step-nav">
+            <button class="btn-back" onclick="prevStep(2)">← Back</button>
+            <button class="btn-next" onclick="nextStep(2)">Continue →</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- STEP 3: INFRA PREFERENCE -->
+    <!-- STEP 3 -->
     <div class="step-card" id="step3">
       <div class="step-head" onclick="toggleStep(3)">
-        <div class="step-num" id="sn3">3</div>
-        <div><div class="step-title">Infrastructure & Use Case</div></div>
-        <div class="step-subtitle" id="ss3">Deployment context</div>
+        <div class="step-num-circle" id="sn3">3</div>
+        <div class="step-meta">
+          <div class="step-title">Infrastructure & requirements</div>
+          <div class="step-sub" id="ss3">Deployment context</div>
+        </div>
+        <span class="step-check" id="sc3" style="display:none">✓</span>
       </div>
-      <div class="progress-bar"><div class="progress-fill" id="pb3" style="width:0%"></div></div>
-      <div class="step-body" id="sb3">
+      <div class="step-body">
+        <div class="step-body-inner">
 
-        <div class="field">
-          <div class="field-label">Deployment Target</div>
-          <div class="opt-grid cols3">
-            <button class="opt-btn" onclick="selectOpt('deploy','cloud',this)"><span class="opt-label">☁️ Cloud</span><span class="opt-desc">AWS / Azure / GCP</span></button>
-            <button class="opt-btn" onclick="selectOpt('deploy','onprem',this)"><span class="opt-label">🖥️ On-prem</span><span class="opt-desc">Own hardware</span></button>
-            <button class="opt-btn" onclick="selectOpt('deploy','both',this)"><span class="opt-label">⚖️ Compare</span><span class="opt-desc">Show both options</span></button>
+          <div class="sec-label">Deployment Target</div>
+          <div class="opt-grid c3" style="margin-bottom:var(--sp6)">
+            <button class="opt-btn" onclick="selectOpt('deploy','cloud',this)"><span class="opt-icon">☁️</span><span class="opt-name">Cloud</span><span class="opt-hint">AWS · Azure · GCP</span></button>
+            <button class="opt-btn" onclick="selectOpt('deploy','onprem',this)"><span class="opt-icon">🖥️</span><span class="opt-name">On-prem</span><span class="opt-hint">Own hardware</span></button>
+            <button class="opt-btn" onclick="selectOpt('deploy','both',this)"><span class="opt-icon">⚖️</span><span class="opt-name">Compare both</span><span class="opt-hint">Show TCO analysis</span></button>
           </div>
-        </div>
 
-        <div class="field">
-          <div class="field-label">Latency Requirement</div>
-          <div class="opt-grid cols3">
-            <button class="opt-btn" onclick="selectOpt('latency','realtime',this)"><span class="opt-label">⚡ Real-time</span><span class="opt-desc">&lt;500ms</span></button>
-            <button class="opt-btn" onclick="selectOpt('latency','interactive',this)"><span class="opt-label">🙋 Interactive</span><span class="opt-desc">&lt;3s</span></button>
-            <button class="opt-btn" onclick="selectOpt('latency','batch',this)"><span class="opt-label">📦 Batch</span><span class="opt-desc">Minutes OK</span></button>
+          <div class="sec-label">Latency Requirement</div>
+          <div class="opt-grid c3" style="margin-bottom:var(--sp6)">
+            <button class="opt-btn" onclick="selectOpt('latency','realtime',this)"><span class="opt-name">Real-time</span><span class="opt-hint">&lt;500ms responses</span></button>
+            <button class="opt-btn" onclick="selectOpt('latency','interactive',this)"><span class="opt-name">Interactive</span><span class="opt-hint">&lt;3s responses</span></button>
+            <button class="opt-btn" onclick="selectOpt('latency','batch',this)"><span class="opt-name">Batch</span><span class="opt-hint">Minutes acceptable</span></button>
           </div>
-        </div>
 
-        <div class="field">
-          <div class="field-label">Stage</div>
-          <div class="opt-grid cols2">
-            <button class="opt-btn" onclick="selectOpt('stage','prototype',this)"><span class="opt-label">🧪 Prototype</span><span class="opt-desc">Testing / PoC</span></button>
-            <button class="opt-btn" onclick="selectOpt('stage','production',this)"><span class="opt-label">🚀 Production</span><span class="opt-desc">Live workload</span></button>
+          <div class="sec-label">Stage</div>
+          <div class="opt-grid c2">
+            <button class="opt-btn" onclick="selectOpt('stage','prototype',this)"><span class="opt-icon">🧪</span><span class="opt-name">Prototype / PoC</span><span class="opt-hint">Exploring and testing</span></button>
+            <button class="opt-btn" onclick="selectOpt('stage','production',this)"><span class="opt-icon">🚀</span><span class="opt-name">Production</span><span class="opt-hint">Live, real traffic</span></button>
           </div>
-        </div>
 
-        <div class="step-nav">
-          <button class="snav" onclick="prevStep(3)">← Back</button>
-          <button class="snav next" onclick="nextStep(3)">Next →</button>
+          <div class="step-nav">
+            <button class="btn-back" onclick="prevStep(3)">← Back</button>
+            <button class="btn-next" onclick="nextStep(3)">Continue →</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- STEP 4: BUDGET -->
+    <!-- STEP 4 -->
     <div class="step-card" id="step4">
       <div class="step-head" onclick="toggleStep(4)">
-        <div class="step-num" id="sn4">4</div>
-        <div><div class="step-title">Budget & Hours</div></div>
-        <div class="step-subtitle" id="ss4">Cost parameters</div>
-      </div>
-      <div class="progress-bar"><div class="progress-fill" id="pb4" style="width:0%"></div></div>
-      <div class="step-body" id="sb4">
-
-        <div class="field">
-          <div class="field-label">Monthly Cloud Budget</div>
-          <div class="opt-grid cols2">
-            <button class="opt-btn" onclick="selectOpt('budget','<500',this)"><span class="opt-label">&lt; $500/mo</span><span class="opt-desc">Starter</span></button>
-            <button class="opt-btn" onclick="selectOpt('budget','500-2k',this)"><span class="opt-label">$500–2K/mo</span><span class="opt-desc">Small team</span></button>
-            <button class="opt-btn" onclick="selectOpt('budget','2k-10k',this)"><span class="opt-label">$2K–10K/mo</span><span class="opt-desc">Scale-up</span></button>
-            <button class="opt-btn" onclick="selectOpt('budget','>10k',this)"><span class="opt-label">&gt; $10K/mo</span><span class="opt-desc">Enterprise</span></button>
-          </div>
+        <div class="step-num-circle" id="sn4">4</div>
+        <div class="step-meta">
+          <div class="step-title">Budget & usage hours</div>
+          <div class="step-sub" id="ss4">For cost calculation</div>
         </div>
+      </div>
+      <div class="step-body">
+        <div class="step-body-inner">
 
-        <div class="field">
-          <div class="field-label">Usage Hours per Day</div>
-          <div class="slider-wrap">
+          <div class="sec-label">Monthly Cloud Budget</div>
+          <div class="opt-grid c2" style="margin-bottom:var(--sp6)">
+            <button class="opt-btn" onclick="selectOpt('budget','<500',this)"><span class="opt-name">&lt; $500 / mo</span><span class="opt-hint">Starter</span></button>
+            <button class="opt-btn" onclick="selectOpt('budget','500-2k',this)"><span class="opt-name">$500 – $2K / mo</span><span class="opt-hint">Small team</span></button>
+            <button class="opt-btn" onclick="selectOpt('budget','2k-10k',this)"><span class="opt-name">$2K – $10K / mo</span><span class="opt-hint">Scale-up</span></button>
+            <button class="opt-btn" onclick="selectOpt('budget','>10k',this)"><span class="opt-name">&gt; $10K / mo</span><span class="opt-hint">Enterprise</span></button>
+          </div>
+
+          <div class="slider-section">
             <div class="slider-top">
-              <span class="slider-label">Hours GPU is active daily</span>
-              <span class="slider-val"><span id="hoursVal">8</span><span class="unit">hrs/day</span></span>
+              <div class="slider-label">GPU active hours per day</div>
+              <div class="slider-display"><span id="hoursVal">8</span><span class="unit"> hrs/day</span></div>
             </div>
-            <input type="range" id="hoursSlider" min="1" max="24" value="8" oninput="updateSlider('hours',this.value)"/>
+            <input type="range" id="hoursSlider" min="1" max="24" value="8" oninput="updateSlider('hours',this.value)" aria-label="Hours per day"/>
             <div class="slider-marks"><span>1</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
           </div>
-        </div>
 
-        <div class="step-nav">
-          <button class="snav" onclick="prevStep(4)">← Back</button>
-        </div>
+          <div class="step-nav">
+            <button class="btn-back" onclick="prevStep(4)">← Back</button>
+          </div>
 
-        <button class="calc-btn" onclick="calculate()" id="calcBtn" style="margin-top:1rem">
-          ⚡ Calculate GPU & Cost
-        </button>
+          <button class="btn-calc" onclick="calculate()" id="calcBtn">
+            Get my GPU recommendation →
+          </button>
+        </div>
       </div>
     </div>
 
   </div>
 
-  <!-- RIGHT: RESULTS -->
+  <!-- RESULT PANEL -->
   <div class="result-panel" id="resultPanel">
-    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:0.5rem;display:flex;align-items:center;gap:8px"><span style="display:block;width:16px;height:1px;background:var(--b3)"></span>Sizing Output</div>
-    <div class="empty-box" id="emptyBox">
-      <div class="empty-icon">⚡</div>
-      <div class="empty-t">Complete the 4 steps</div>
-      <div class="empty-s">Fill in your workload details on the left. GPU recommendations, VRAM requirements, and cost breakdown will appear here instantly.</div>
+    <div class="empty-state" id="emptyBox">
+      <span class="empty-icon">⚡</span>
+      <div class="empty-title">Your results will appear here</div>
+      <div class="empty-desc">Complete the 4 steps on the left to get your GPU recommendation and cost breakdown.</div>
     </div>
   </div>
 
 </div>
 
 <footer>
-  <p>Built by <a href="https://shantanu9.github.io">Shantanu</a> — AI Product Manager · <a href="mailto:shantanuiimu@gmail.com">shantanuiimu@gmail.com</a> · aiadvisor.co.in</p>
+  <p>Built by <a href="https://shantanu9.github.io">Shantanu</a> — AI Product Manager · Azure AI Factory · <a href="mailto:shantanuiimu@gmail.com">shantanuiimu@gmail.com</a></p>
 </footer>
 
 <script>
-// ─── STATE ───────────────────────────────────────────────
-const state = {
-  workload: null, modelSize: null, precision: 'fp16',
-  scale: 10, context: '8k', deploy: 'cloud',
-  latency: 'interactive', stage: 'production',
-  budget: null, hours: 8
-};
-let currentStep = 1;
-let resultData = null;
+const state={workload:null,modelSize:null,precision:'fp16',scale:10,context:'8k',deploy:'cloud',latency:'interactive',stage:'production',budget:null,hours:8};
+let resultData=null;
 
-// ─── GPU DATABASE ─────────────────────────────────────────
-const GPUS = [
-  {name:'NVIDIA H100 80GB SXM5', vram:80, cloudHr:3.20, buyPrice:28000, tier:'enterprise', tflops:989},
-  {name:'NVIDIA H100 80GB PCIe', vram:80, cloudHr:2.60, buyPrice:25000, tier:'enterprise', tflops:756},
-  {name:'NVIDIA A100 80GB SXM', vram:80, cloudHr:2.10, buyPrice:15000, tier:'pro', tflops:312},
-  {name:'NVIDIA A100 40GB', vram:40, cloudHr:1.60, buyPrice:10000, tier:'pro', tflops:312},
-  {name:'NVIDIA L40S 48GB', vram:48, cloudHr:1.40, buyPrice:8500, tier:'pro', tflops:362},
-  {name:'NVIDIA RTX 4090 24GB', vram:24, cloudHr:0.80, buyPrice:2000, tier:'consumer', tflops:82},
-  {name:'NVIDIA A10G 24GB', vram:24, cloudHr:0.90, buyPrice:5000, tier:'mid', tflops:125},
-  {name:'NVIDIA T4 16GB', vram:16, cloudHr:0.35, buyPrice:2500, tier:'budget', tflops:65},
-  {name:'NVIDIA V100 16GB', vram:16, cloudHr:0.55, buyPrice:3000, tier:'budget', tflops:112},
+const GPU_DB=[
+  {name:'NVIDIA H100 80GB SXM5',vram:80,cloudHr:3.20,buy:28000,tier:'enterprise',tflops:989},
+  {name:'NVIDIA H100 80GB PCIe',vram:80,cloudHr:2.60,buy:25000,tier:'enterprise',tflops:756},
+  {name:'NVIDIA A100 80GB',vram:80,cloudHr:2.10,buy:15000,tier:'pro',tflops:312},
+  {name:'NVIDIA A100 40GB',vram:40,cloudHr:1.60,buy:10000,tier:'pro',tflops:312},
+  {name:'NVIDIA L40S 48GB',vram:48,cloudHr:1.40,buy:8500,tier:'pro',tflops:362},
+  {name:'NVIDIA RTX 4090 24GB',vram:24,cloudHr:0.80,buy:2000,tier:'consumer',tflops:82},
+  {name:'NVIDIA A10G 24GB',vram:24,cloudHr:0.90,buy:5000,tier:'mid',tflops:125},
+  {name:'NVIDIA T4 16GB',vram:16,cloudHr:0.35,buy:2500,tier:'budget',tflops:65},
 ];
 
-// ─── VRAM SIZING ENGINE ───────────────────────────────────
-const MODEL_PARAMS = {'1-3B':2,'7B':7,'13B':13,'34B':34,'70B':70,'>70B':140};
-const PRECISION_MULT = {'fp16':2,'int8':1,'qlora':0.5,'lora':1};
-const CONTEXT_OVERHEAD = {'2k':0.5,'8k':1,'32k':2,'64k':3,'128k':5};
+const MODEL_PARAMS={'1-3B':2,'7B':7,'13B':13,'34B':34,'70B':70,'>70B':140};
+const PREC_MULT={'fp16':2,'int8':1,'qlora':0.5,'lora':1};
+const CTX={'2k':0.5,'8k':1,'32k':2,'64k':3,'128k':5};
+const MODEL_RECS={
+  inference:{'1-3B':'Phi-3 Mini / Qwen2 1.5B','7B':'Llama 3.1 8B / Mistral 7B','13B':'Llama 2 13B / Qwen 14B','34B':'CodeLlama 34B / Qwen 32B','70B':'Llama 3.1 70B / Mixtral 8×7B','>70B':'Llama 3.1 405B'},
+  finetuning:{'1-3B':'Phi-3 Mini (QLoRA)','7B':'Mistral 7B / Llama 3 8B','13B':'Llama 2 13B','34B':'CodeLlama 34B','70B':'Llama 2 70B (multi-GPU)','>70B':'Llama 3.1 405B (cluster)'},
+  rag:{'1-3B':'Phi-3 Mini + BGE-small','7B':'Mistral 7B + BGE-large','13B':'Llama 2 13B + E5-large','34B':'Mixtral + OpenAI Embeddings','70B':'Llama 3.1 70B + ColBERT','>70B':'GPT-4 API + Dense Retrieval'},
+  embeddings:{'1-3B':'BGE-small / MiniLM','7B':'BGE-large / E5-large','13B':'E5-mistral-7b-instruct','34B':'SFR-Embedding-Mistral','70B':'text-embedding-3-large','>70B':'text-embedding-3-large (API)'}
+};
 
-function calcVRAM() {
-  const params = MODEL_PARAMS[state.modelSize] || 7;
-  const bytesPerParam = PRECISION_MULT[state.precision] || 2;
-  const baseVRAM = params * bytesPerParam;
-
-  let overhead = 1.2; // KV cache + activations base
-  overhead += CONTEXT_OVERHEAD[state.context] || 1;
-
-  let scaleMultiplier = 1;
-  if (state.workload === 'inference') {
-    scaleMultiplier = 1 + (state.scale / 100) * 0.8;
-  } else if (state.workload === 'finetuning') {
-    scaleMultiplier = state.precision === 'qlora' ? 1.5 : 3;
-  } else if (state.workload === 'rag') {
-    overhead += 4; // embedding model
-  } else if (state.workload === 'embeddings') {
-    scaleMultiplier = 1;
-    overhead = 1.1;
-  }
-
-  const totalVRAM = Math.ceil(baseVRAM * overhead * scaleMultiplier);
-  return { totalVRAM, modelVRAM: Math.round(baseVRAM), overhead: Math.round((overhead-1)*100) };
+function calcVRAM(){
+  const params=MODEL_PARAMS[state.modelSize]||7;
+  const bpp=PREC_MULT[state.precision]||2;
+  const base=params*bpp;
+  let oh=1.25+(CTX[state.context]||1);
+  let sm=1;
+  if(state.workload==='inference') sm=1+(state.scale/100)*0.8;
+  else if(state.workload==='finetuning') sm=state.precision==='qlora'?1.5:3;
+  else if(state.workload==='rag') oh+=4;
+  const total=Math.ceil(base*oh*sm);
+  return{total,model:Math.round(base),pct:Math.min(Math.round((total/(GPU_DB[0].vram))*100),100)};
 }
 
-function getGPURecs(vramNeeded) {
-  const gpus = GPUS
-    .map(g => {
-      const gpuCount = Math.ceil(vramNeeded / g.vram);
-      const effectiveHr = g.cloudHr * gpuCount;
-      let score = 100;
-      if (gpuCount > 1) score -= 20;
-      if (g.tier === 'budget' && state.stage === 'production') score -= 15;
-      if (g.tier === 'consumer' && state.stage === 'production') score -= 10;
-      if (state.latency === 'realtime' && g.tflops < 200) score -= 20;
-      if (state.budget === '<500' && effectiveHr * state.hours * 30 > 500) score -= 30;
-      score = Math.max(0, score);
-      return { ...g, gpuCount, effectiveHr, score };
+function getGPUs(vram){
+  return GPU_DB
+    .map(g=>{
+      const cnt=Math.ceil(vram/g.vram);
+      const ehr=g.cloudHr*cnt;
+      let score=100;
+      if(cnt>1)score-=20;
+      if(g.tier==='budget'&&state.stage==='production')score-=15;
+      if(g.tier==='consumer'&&state.stage==='production')score-=10;
+      if(state.latency==='realtime'&&g.tflops<200)score-=20;
+      if(state.budget==='<500'&&ehr*state.hours*30>500)score-=30;
+      return{...g,cnt,ehr,score:Math.max(0,score)};
     })
-    .filter(g => g.vram * g.gpuCount >= vramNeeded)
-    .sort((a,b) => b.score - a.score)
-    .slice(0, 4);
-
-  return gpus.map((g, i) => ({
-    ...g,
-    fit: i === 0 ? 'best' : i === 1 ? 'good' : 'budget'
-  }));
+    .filter(g=>g.vram*g.cnt>=vram)
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,4)
+    .map((g,i)=>({...g,fit:i===0?'best':i===1?'good':'budget'}));
 }
 
-function calcCosts(gpu) {
-  const hrly = gpu.effectiveHr;
-  const daily = hrly * state.hours;
-  const monthly = daily * 30;
-  const yearly = monthly * 12;
-  const onprem = gpu.buyPrice * gpu.gpuCount;
-  const breakeven = onprem / monthly;
-  return {
-    hourly: fmt(hrly), daily: fmt(daily),
-    monthly: fmt(monthly), yearly: fmt(yearly),
-    onprem: '$' + onprem.toLocaleString(),
-    breakeven: Math.round(breakeven)
-  };
+function getCosts(g){
+  const hr=g.ehr,mo=hr*state.hours*30,yr=mo*12,op=g.buy*g.cnt;
+  return{hr:fmt(hr),mo:fmt(mo),yr:fmt(yr),op:'$'+op.toLocaleString(),be:Math.round(op/mo)};
 }
 
-function fmt(n) {
-  if (n >= 1000) return '$' + (n/1000).toFixed(1) + 'K';
-  return '$' + n.toFixed(2);
-}
+function fmt(n){return n>=1000?'$'+(n/1000).toFixed(1)+'K':'$'+n.toFixed(0)}
 
-function getRecommendedModel() {
-  const map = {
-    'inference': {'1-3B':'Phi-3 Mini / Qwen2 1.5B','7B':'Llama 3.1 8B / Mistral 7B','13B':'Llama 2 13B / Qwen 14B','34B':'CodeLlama 34B / Qwen 32B','70B':'Llama 3.1 70B / Mixtral 8x7B','>70B':'Llama 3.1 405B / Mixtral 8x22B'},
-    'finetuning': {'1-3B':'Phi-3 Mini (QLoRA)','7B':'Mistral 7B / Llama 3 8B','13B':'Llama 2 13B','34B':'CodeLlama 34B','70B':'Llama 2 70B (multi-GPU)','>70B':'Llama 3.1 405B (cluster)'},
-    'rag': {'1-3B':'Phi-3 Mini + BGE-small','7B':'Mistral 7B + BGE-large','13B':'Llama 2 13B + E5-large','34B':'Mixtral + OpenAI Embeddings','70B':'Llama 3.1 70B + ColBERT','>70B':'GPT-4 API + Dense Retrieval'},
-    'embeddings': {'1-3B':'BGE-small / MiniLM','7B':'BGE-large / E5-large','13B':'E5-mistral-7b-instruct','34B':'SFR-Embedding-Mistral','70B':'text-embedding-3-large','*':'text-embedding-3-large (API)'}
-  };
-  return (map[state.workload] || {})[state.modelSize] || 'Custom model selection recommended';
-}
-
-// ─── CALCULATE ─────────────────────────────────────────────
-function calculate() {
-  const missing = [];
-  if (!state.workload) missing.push('Workload type');
-  if (!state.modelSize) missing.push('Model size');
-  if (!state.deploy) missing.push('Deployment target');
-
-  if (missing.length) {
-    alert('Please complete: ' + missing.join(', '));
-    return;
+function calculate(){
+  if(!state.workload||!state.modelSize||!state.deploy){
+    alert('Please complete all steps first.');return;
   }
-
-  const { totalVRAM, modelVRAM } = calcVRAM();
-  const gpus = getGPURecs(totalVRAM);
-  const topGpu = gpus[0];
-  const costs = calcCosts(topGpu);
-  const recModel = getRecommendedModel();
-  const pct = Math.min(Math.round((totalVRAM / topGpu.vram) * 100), 100);
-
-  resultData = { totalVRAM, modelVRAM, gpus, costs, topGpu, recModel, pct };
+  const{total,model,pct}=calcVRAM();
+  const gpus=getGPUs(total);
+  const top=gpus[0];
+  const costs=getCosts(top);
+  const rec=(MODEL_RECS[state.workload]||{})[state.modelSize]||'Custom selection recommended';
+  resultData={total,model,pct,gpus,top,costs,rec};
   renderResults(resultData);
+  document.getElementById('resultPanel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
-// ─── RENDER ────────────────────────────────────────────────
-function renderResults(d) {
-  const panel = document.getElementById('resultPanel');
-  const fitClass = {best:'f-best',good:'f-good',budget:'f-budget'};
-  const barColor = {best:'background:var(--g)',good:'background:var(--p)',budget:'background:var(--o)'};
-
-  const gpuHTML = d.gpus.map(g => `
+function renderResults(d){
+  const fc={best:'fit-best',good:'fit-good',budget:'fit-budget'};
+  const gpuHTML=d.gpus.map(g=>`
     <div class="gc ${g.fit==='best'?'best':''}">
       <div class="gc-top">
-        <span class="gc-name">${g.name}${g.gpuCount>1?' ×'+g.gpuCount:''}</span>
-        <span class="gc-fit ${fitClass[g.fit]}">${g.fit}</span>
+        <div><div class="gc-name">${g.name}</div>${g.cnt>1?`<div class="gc-count">${g.cnt} GPUs required</div>`:''}</div>
+        <span class="fit-chip ${fc[g.fit]}">${g.fit==='best'?'Best fit':g.fit==='good'?'Good fit':'Budget'}</span>
       </div>
-      <div class="gc-metrics">
-        <div class="gm"><div class="gm-l">VRAM</div><div class="gm-v">${g.vram*g.gpuCount}GB</div></div>
-        <div class="gm"><div class="gm-l">$/hr</div><div class="gm-v">${fmt(g.effectiveHr)}</div></div>
-        <div class="gm"><div class="gm-l">GPUs</div><div class="gm-v">${g.gpuCount}×</div></div>
-        <div class="gm"><div class="gm-l">Score</div><div class="gm-v">${g.score}/100</div></div>
+      <div class="gc-row">
+        <div class="gm"><div class="gm-l">Total VRAM</div><div class="gm-v">${g.vram*g.cnt}GB</div></div>
+        <div class="gm"><div class="gm-l">Cloud / hr</div><div class="gm-v">${fmt(g.ehr)}</div></div>
+        <div class="gm"><div class="gm-l">Fit score</div><div class="gm-v">${g.score}/100</div></div>
       </div>
-      <div class="score-bar-wrap"><div class="score-bar" style="width:${g.score}%;${barColor[g.fit]}"></div></div>
+      <div class="score-track"><div class="score-fill" style="width:${g.score}%"></div></div>
     </div>`).join('');
 
-  const tcoText = d.costs.breakeven < 6
-    ? 'On-prem pays off fast — buy hardware.'
-    : d.costs.breakeven < 18
-    ? 'Borderline — consider hybrid approach.'
-    : 'Cloud is more cost-effective for this workload.';
+  const tcoNote=d.costs.be<6?'On-prem pays off quickly — consider buying hardware.':d.costs.be<18?'Borderline — evaluate hybrid approach.':'Cloud is more cost-effective for this workload duration.';
 
-  panel.innerHTML = `
-    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:0.5rem;display:flex;align-items:center;gap:8px"><span style="display:block;width:16px;height:1px;background:var(--b3)"></span>Sizing Output</div>
-
-    <div class="rc">
+  document.getElementById('resultPanel').innerHTML=`
+    <div class="rc" style="animation-delay:0s">
       <div class="rc-head">
-        <span class="rc-title"><span class="rc-dot dot-p"></span>Memory Requirements</span>
-        <span class="rc-badge bp">${state.workload?.toUpperCase()}</span>
+        <span class="rc-title">Memory Requirements</span>
+        <span class="badge badge-red">${(state.workload||'').toUpperCase()}</span>
       </div>
       <div class="vb">
-        <div class="vb-row">
-          <div class="vb-cell">
-            <div class="vb-label">Total VRAM Needed</div>
-            <div class="vb-val">${d.totalVRAM}<span class="unit">GB</span></div>
-          </div>
-          <div class="vb-cell">
-            <div class="vb-label">Model Weight</div>
-            <div class="vb-val">${d.modelVRAM}<span class="unit">GB</span></div>
-          </div>
+        <div class="vb-metrics">
+          <div class="vb-cell"><div class="vb-lbl">VRAM Needed</div><div class="vb-val">${d.total}<span class="u">GB</span></div></div>
+          <div class="vb-cell"><div class="vb-lbl">Model Weight</div><div class="vb-val">${d.model}<span class="u">GB</span></div></div>
         </div>
-        <div class="bar-wrap"><div class="bar-fill bar-p" style="width:0%" id="vbar"></div></div>
-        <div class="bar-note">${d.pct}% of recommended GPU utilized · ${state.precision?.toUpperCase()} precision · ${state.context} context</div>
-        <div style="margin-top:8px;background:var(--s2);border-radius:var(--r);padding:9px 11px;border:1px solid var(--b);font-size:12px;color:var(--ink2)">
-          <strong style="color:var(--ink)">Recommended model:</strong> ${d.recModel}
+        <div class="bar-track"><div class="bar-fill" style="width:0%" id="vbar"></div></div>
+        <div class="bar-label">${state.precision?.toUpperCase()} · ${state.context} context · ${state.scale} ${state.workload==='finetuning'?'epochs':'users'}</div>
+        <div class="model-rec">
+          <div class="model-rec-label">Recommended model</div>
+          <div class="model-rec-val">${d.rec}</div>
         </div>
       </div>
     </div>
 
-    <div class="rc">
+    <div class="rc" style="animation-delay:.1s">
       <div class="rc-head">
-        <span class="rc-title"><span class="rc-dot dot-g"></span>GPU Recommendations</span>
-        <span class="rc-badge bg">${d.gpus.length} options</span>
+        <span class="rc-title">GPU Recommendations</span>
+        <span class="badge badge-green">${d.gpus.length} options ranked</span>
       </div>
-      <div class="gpu-list">${gpuHTML}</div>
+      <div class="gpu-stack">${gpuHTML}</div>
     </div>
 
-    <div class="rc">
+    <div class="rc" style="animation-delay:.2s">
       <div class="rc-head">
-        <span class="rc-title"><span class="rc-dot dot-o"></span>Cost Breakdown</span>
-        <span class="rc-badge bo">TCO Analysis</span>
+        <span class="rc-title">Cost Breakdown</span>
+        <span class="badge badge-amber">TCO Analysis</span>
       </div>
       <div class="cost-b">
-        <div class="cost-row">
-          <div class="cost-cell"><div class="cc-l">Per Hour</div><div class="cc-v">${d.costs.hourly}</div></div>
-          <div class="cost-cell"><div class="cc-l">Per Month</div><div class="cc-v">${d.costs.monthly}</div></div>
-          <div class="cost-cell"><div class="cc-l">Per Year</div><div class="cc-v">${d.costs.yearly}</div></div>
+        <div class="cost-grid">
+          <div class="cost-cell"><div class="cc-l">Per Hour</div><div class="cc-v">${d.costs.hr}</div></div>
+          <div class="cost-cell"><div class="cc-l">Per Month</div><div class="cc-v">${d.costs.mo}</div></div>
+          <div class="cost-cell"><div class="cc-l">Per Year</div><div class="cc-v">${d.costs.yr}</div></div>
         </div>
-        <div class="tco-row">
-          <div class="tco-num">${d.costs.breakeven}mo</div>
-          <div class="tco-text">
-            <strong>On-prem: ${d.costs.onprem}</strong>
-            ${tcoText} Breakeven at ${d.costs.breakeven} months of cloud spend.
+        <div class="tco-box">
+          <div class="tco-num">${d.costs.be}mo</div>
+          <div class="tco-info">
+            <div class="tco-head">On-prem: ${d.costs.op} one-time</div>
+            <div class="tco-note">${tcoNote}</div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="rc">
-      <div class="rc-head"><span class="rc-title"><span class="rc-dot dot-p"></span>Configuration Summary</span></div>
-      <div class="rec-b">
+    <div class="rc" style="animation-delay:.3s">
+      <div class="rc-head"><span class="rc-title">Your Configuration</span></div>
+      <div class="sum-b">
         <div class="tag-row">
-          <span class="tag-pill tp">${state.workload}</span>
-          <span class="tag-pill tp">${state.modelSize} params</span>
-          <span class="tag-pill tp">${state.precision}</span>
-          <span class="tag-pill tg">${state.scale} ${state.workload==='finetuning'?'epochs':'users'}</span>
-          <span class="tag-pill tg">${state.context} context</span>
-          <span class="tag-pill to">${state.deploy}</span>
-          <span class="tag-pill to">${state.latency}</span>
-          <span class="tag-pill to">${state.stage}</span>
+          ${[state.workload,state.modelSize+' params',state.precision,state.context+' context',state.deploy,state.latency,state.stage].filter(Boolean).map(t=>`<span class="stag">${t}</span>`).join('')}
         </div>
       </div>
       <div class="exp-row">
         <button class="eb" onclick="expJSON()">↓ JSON</button>
         <button class="eb" onclick="expCSV()">↓ CSV</button>
-        <button class="eb" id="cpBtn" onclick="cpText()">⎘ Copy</button>
+        <button class="eb" id="cpBtn" onclick="cpText()">⎘ Copy summary</button>
       </div>
     </div>
 
-    <button class="reset-btn" onclick="resetAll()">↺ Start over</button>`;
+    <button class="btn-reset" onclick="resetAll()">↺ Start a new calculation</button>`;
 
-  setTimeout(() => {
-    const b = document.getElementById('vbar');
-    if (b) b.style.width = d.pct + '%';
-  }, 150);
+  setTimeout(()=>{const b=document.getElementById('vbar');if(b)b.style.width=d.pct+'%'},200);
 }
 
-// ─── FORM LOGIC ────────────────────────────────────────────
-function selectOpt(key, val, el) {
-  state[key] = val;
-  const parent = el.closest('.opt-grid, .tag-grid');
-  if (parent) parent.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
-  el.classList.add('selected');
+// Form logic
+function selectOpt(key,val,el){
+  state[key]=val;
+  el.closest('.opt-grid').querySelectorAll('.opt-btn').forEach(b=>{b.classList.remove('sel');b.setAttribute('aria-pressed','false')});
+  el.classList.add('sel');el.setAttribute('aria-pressed','true');
 }
-
-function updateSlider(key, val) {
-  if (key === 'scale') { state.scale = parseInt(val); document.getElementById('scaleVal').textContent = val; }
-  if (key === 'hours') { state.hours = parseInt(val); document.getElementById('hoursVal').textContent = val; }
+function updateSlider(key,val){
+  if(key==='scale'){state.scale=parseInt(val);document.getElementById('scaleVal').textContent=val}
+  if(key==='hours'){state.hours=parseInt(val);document.getElementById('hoursVal').textContent=val}
 }
-
-function toggleStep(n) {
-  const card = document.getElementById('step'+n);
-  const isActive = card.classList.contains('active');
-  if (!isActive) { card.classList.add('active'); }
+function toggleStep(n){document.getElementById('step'+n).classList.toggle('active')}
+function nextStep(n){
+  const c=document.getElementById('step'+n);
+  c.classList.remove('active');c.classList.add('done');
+  document.getElementById('sn'+n).textContent='✓';
+  document.getElementById('sc'+n).style.display='inline';
+  const next=document.getElementById('step'+(n+1));
+  if(next)next.classList.add('active');
+  updateStepIndicator(n+1);
 }
-
-function nextStep(n) {
+function prevStep(n){
   document.getElementById('step'+n).classList.remove('active');
-  document.getElementById('sn'+n).textContent = '✓';
-  document.getElementById('step'+n).classList.add('done');
-  const next = document.getElementById('step'+(n+1));
-  if (next) { next.classList.add('active'); }
-  updateProgress(n, 100);
+  const prev=document.getElementById('step'+(n-1));
+  if(prev){prev.classList.remove('done');prev.classList.add('active')}
+  document.getElementById('sn'+(n-1)).textContent=n-1;
+  document.getElementById('sc'+(n-1)).style.display='none';
+  updateStepIndicator(n-1);
 }
-
-function prevStep(n) {
-  document.getElementById('step'+n).classList.remove('active');
-  document.getElementById('step'+(n-1)).classList.add('active');
-  document.getElementById('step'+(n-1)).classList.remove('done');
-  document.getElementById('sn'+(n-1)).textContent = n-1;
+function updateStepIndicator(active){
+  [1,2,3,4].forEach(n=>{
+    const el=document.getElementById('si'+n);
+    const line=document.getElementById('sl'+n);
+    if(!el)return;
+    el.classList.remove('active','done');
+    if(n<active){el.classList.add('done');el.querySelector('.si-num').textContent='✓';if(line)line.style.background='var(--green)'}
+    else if(n===active){el.classList.add('active');el.querySelector('.si-num').textContent=n}
+    else{el.querySelector('.si-num').textContent=n}
+  });
 }
-
-function updateProgress(step, pct) {
-  const b = document.getElementById('pb'+step);
-  if (b) b.style.width = pct + '%';
-}
-
-function resetAll() {
-  Object.assign(state, {workload:null,modelSize:null,precision:'fp16',scale:10,context:'8k',deploy:'cloud',latency:'interactive',stage:'production',budget:null,hours:8});
-  [1,2,3,4].forEach(n => {
-    const c = document.getElementById('step'+n);
+function resetAll(){
+  Object.assign(state,{workload:null,modelSize:null,precision:'fp16',scale:10,context:'8k',deploy:'cloud',latency:'interactive',stage:'production',budget:null,hours:8});
+  [1,2,3,4].forEach(n=>{
+    const c=document.getElementById('step'+n);
     c.classList.remove('active','done');
-    document.getElementById('sn'+n).textContent = n;
-    document.querySelectorAll('#sb'+n+' .opt-btn').forEach(b => b.classList.remove('selected'));
-    document.getElementById('pb'+n).style.width = '0%';
+    if(document.getElementById('sn'+n))document.getElementById('sn'+n).textContent=n;
+    if(document.getElementById('sc'+n))document.getElementById('sc'+n).style.display='none';
+    c.querySelectorAll('.opt-btn').forEach(b=>{b.classList.remove('sel');b.setAttribute('aria-pressed','false')});
+    const pb=document.getElementById('pb'+n);if(pb)pb.style.width='0%';
   });
   document.getElementById('step1').classList.add('active');
-  document.getElementById('resultPanel').innerHTML = `
-    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:0.5rem;display:flex;align-items:center;gap:8px"><span style="display:block;width:16px;height:1px;background:var(--b3)"></span>Sizing Output</div>
-    <div class="empty-box">
-      <div class="empty-icon">⚡</div>
-      <div class="empty-t">Complete the 4 steps</div>
-      <div class="empty-s">Fill in your workload details on the left. GPU recommendations, VRAM requirements, and cost breakdown will appear here instantly.</div>
+  updateStepIndicator(1);
+  document.getElementById('resultPanel').innerHTML=`
+    <div class="empty-state">
+      <span class="empty-icon">⚡</span>
+      <div class="empty-title">Your results will appear here</div>
+      <div class="empty-desc">Complete the 4 steps on the left to get your GPU recommendation and cost breakdown.</div>
     </div>`;
 }
 
-// ─── EXPORT ────────────────────────────────────────────────
-function expJSON() {
-  if (!resultData) return;
-  const blob = new Blob([JSON.stringify({inputs:state, outputs:resultData}, null, 2)], {type:'application/json'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'ai-sizing.json'; a.click();
-}
-function expCSV() {
-  if (!resultData) return;
-  const d = resultData;
-  const rows = [['Field','Value'],['Workload',state.workload],['Model Size',state.modelSize],['Precision',state.precision],['Total VRAM',d.totalVRAM+'GB'],['Model VRAM',d.modelVRAM+'GB'],['Recommended Model',d.recModel],['Cost/hr',d.costs.hourly],['Cost/mo',d.costs.monthly],['Cost/yr',d.costs.yearly],['On-prem',d.costs.onprem],['Breakeven',d.costs.breakeven+' months'],...d.gpus.map(g=>[g.name,`${g.vram*g.gpuCount}GB | ${fmt(g.effectiveHr)}/hr | ${g.fit}`])];
-  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-  const b = new Blob([csv],{type:'text/csv'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'ai-sizing.csv'; a.click();
-}
-function cpText() {
-  if (!resultData) return;
-  const d = resultData;
-  const t = `AI Workload Sizing Report\n\nWorkload: ${state.workload} | Model: ${state.modelSize} ${state.precision}\nRecommended: ${d.recModel}\nTotal VRAM: ${d.totalVRAM}GB\nTop GPU: ${d.topGpu.name}\nCloud Cost: ${d.costs.hourly}/hr | ${d.costs.monthly}/mo\nOn-prem: ${d.costs.onprem} | Breakeven: ${d.costs.breakeven}mo\n\nGenerated by aiadvisor.co.in`;
-  navigator.clipboard.writeText(t).then(()=>{const b=document.getElementById('cpBtn');if(b){b.textContent='✓ Copied';setTimeout(()=>b.textContent='⎘ Copy',2000)}});
-}
+function expJSON(){if(!resultData)return;const b=new Blob([JSON.stringify({inputs:state,outputs:resultData},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='ai-sizing.json';a.click()}
+function expCSV(){if(!resultData)return;const d=resultData;const rows=[['Field','Value'],['Workload',state.workload],['Model Size',state.modelSize],['Precision',state.precision],['VRAM Needed',d.total+'GB'],['Model Weight',d.model+'GB'],['Recommended Model',d.rec],['Cost/hr',d.costs.hr],['Cost/mo',d.costs.mo],['On-prem',d.costs.op],['Breakeven',d.costs.be+' months'],...d.gpus.map(g=>[g.name,`${g.vram*g.cnt}GB | ${fmt(g.ehr)}/hr | ${g.fit}`])];const csv=rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');const b=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='ai-sizing.csv';a.click()}
+function cpText(){if(!resultData)return;const d=resultData;const t=`AI Workload Sizing\nWorkload: ${state.workload} | Model: ${state.modelSize} (${state.precision})\nRecommended: ${d.rec}\nVRAM: ${d.total}GB | Top GPU: ${d.top.name}\nCloud: ${d.costs.hr}/hr | ${d.costs.mo}/mo | ${d.costs.yr}/yr\nOn-prem: ${d.costs.op} | Breakeven: ${d.costs.be} months\n\naiadvisor.co.in`;navigator.clipboard.writeText(t).then(()=>{const b=document.getElementById('cpBtn');if(b){b.textContent='✓ Copied!';setTimeout(()=>b.textContent='⎘ Copy summary',2000)}})}
 </script>
 </body>
 </html>
