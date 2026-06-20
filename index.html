@@ -4,8 +4,55 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="google-site-verification" content="ZAZ0Vt_X1MlYZn0w9cCnbIhpErv1WG-uw5VkvVwYZTw" />
-<title>AI Advisor — GPU & Cost Sizing Engine</title>
-<meta name="description" content="Free AI GPU sizing calculator. Estimate VRAM, GPU requirements, cloud costs, and AI infrastructure TCO for LLMs, RAG, inference, and fine-tuning workloads."/>
+<title>AI Advisor — Free GPU & AI Cost Sizing Calculator Tool</title>
+<meta name="description" content="Free AI GPU sizing calculator. Estimate VRAM, GPU requirements, cloud costs, and full TCO for LLM inference, RAG, fine-tuning, and embedding workloads. No signup needed."/>
+<link rel="canonical" href="https://aiadvisor.co.in"/>
+<meta property="og:title" content="AI Advisor — Free GPU & AI Cost Sizing Calculator"/>
+<meta property="og:description" content="Size your AI workload in 4 steps. Get GPU recommendations, VRAM requirements, cloud costs, and full TCO instantly."/>
+<meta property="og:url" content="https://aiadvisor.co.in"/>
+<meta property="og:type" content="website"/>
+<meta property="og:image" content="https://aiadvisor.co.in/og-image.png"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="AI Advisor — Free GPU & AI Cost Sizing Calculator"/>
+<meta name="twitter:description" content="Size your AI workload in 4 steps. Get GPU recommendations, VRAM, cloud costs, and TCO instantly."/>
+<!-- Schema.org Person + WebApplication structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": "https://shantanu9.github.io/#person",
+      "name": "Shantanu Singh",
+      "jobTitle": "AI Product Manager",
+      "worksFor": {"@type": "Organization", "name": "HCLTech"},
+      "url": "https://shantanu9.github.io",
+      "email": "shantanuiimu@gmail.com",
+      "sameAs": ["https://www.linkedin.com/in/shantanuss/", "https://github.com/shantanu9"]
+    },
+    {
+      "@type": "WebApplication",
+      "@id": "https://aiadvisor.co.in/#app",
+      "name": "AI Advisor — GPU & Cost Sizing Engine",
+      "url": "https://aiadvisor.co.in",
+      "description": "Free AI GPU sizing calculator for LLM inference, fine-tuning, RAG, and embeddings. Get VRAM requirements, GPU recommendations, cloud costs, and TCO analysis.",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Web",
+      "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+      "author": {"@id": "https://shantanu9.github.io/#person"},
+      "keywords": "GPU sizing, AI infrastructure, VRAM calculator, LLM cost, TCO, H100, A100"
+    }
+  ]
+}
+</script>
+<!-- Google Analytics GA4 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-54RFEN57JC"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-54RFEN57JC');
+</script>
 <meta name="keywords" content="GPU sizing calculator, AI infrastructure calculator, VRAM calculator, LLM GPU requirements, H100 sizing, A100 sizing, AI TCO calculator, AI cost estimator"/>
 <meta name="robots" content="index,follow"/>
 <link rel="canonical" href="https://aiadvisor.co.in/"/>
@@ -603,6 +650,54 @@ footer a{color:var(--rausch);text-decoration:none;font-weight:600}
 <p><strong>Consulting & Collaboration:</strong> shantanuiimu@gmail.com</p>
 </div>
 </section>
+
+<!-- SEO CONTENT SECTION -->
+<div style="max-width:1120px;margin:0 auto;padding:var(--sp12) var(--sp8);border-top:1px solid var(--gray-200)">
+  <h2 style="font-size:clamp(22px,3vw,30px);font-weight:700;color:var(--gray-800);letter-spacing:-0.5px;margin-bottom:var(--sp6)">How AI Advisor works</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--sp6);margin-bottom:var(--sp10)">
+    <div>
+      <h3 style="font-size:15px;font-weight:600;color:var(--gray-800);margin-bottom:var(--sp2)">1. Select your workload</h3>
+      <p style="font-size:13px;color:var(--foggy);line-height:1.6">Choose from LLM inference, fine-tuning, RAG pipelines, or embedding generation. Each workload has different VRAM and compute requirements.</p>
+    </div>
+    <div>
+      <h3 style="font-size:15px;font-weight:600;color:var(--gray-800);margin-bottom:var(--sp2)">2. Configure model & scale</h3>
+      <p style="font-size:13px;color:var(--foggy);line-height:1.6">Select model size (1B to 140B+ parameters), precision (FP16, INT8, QLoRA 4-bit), concurrent users, and context length up to 128K tokens.</p>
+    </div>
+    <div>
+      <h3 style="font-size:15px;font-weight:600;color:var(--gray-800);margin-bottom:var(--sp2)">3. Set infrastructure preferences</h3>
+      <p style="font-size:13px;color:var(--foggy);line-height:1.6">Choose cloud, on-prem, or compare both. Specify latency requirements (real-time, interactive, batch) and deployment stage (prototype or production).</p>
+    </div>
+    <div>
+      <h3 style="font-size:15px;font-weight:600;color:var(--gray-800);margin-bottom:var(--sp2)">4. Get your recommendation</h3>
+      <p style="font-size:13px;color:var(--foggy);line-height:1.6">Instantly see ranked GPU options (H100, A100, L40S, T4), VRAM requirements, cloud cost per hour/month/year, on-prem purchase cost, and TCO breakeven.</p>
+    </div>
+  </div>
+
+  <h2 style="font-size:clamp(22px,3vw,30px);font-weight:700;color:var(--gray-800);letter-spacing:-0.5px;margin-bottom:var(--sp4)">GPU sizing for every AI workload</h2>
+  <p style="font-size:14px;color:var(--foggy);line-height:1.7;max-width:720px;margin-bottom:var(--sp6)">AI Advisor covers the four most common enterprise AI infrastructure patterns. Whether you're running a 70B parameter model for real-time inference, fine-tuning a 7B model with QLoRA on medical records, building a RAG pipeline over millions of documents, or generating embeddings at scale — the sizing engine calculates exact VRAM requirements and recommends the right GPU from a database of 9 production-grade options.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--sp4);margin-bottom:var(--sp10)">
+    <div style="background:var(--gray-50);border-radius:var(--r-lg);padding:var(--sp4);border:1px solid var(--gray-100)">
+      <h3 style="font-size:13px;font-weight:700;color:var(--gray-800);margin-bottom:var(--sp2)">LLM Inference sizing</h3>
+      <p style="font-size:12px;color:var(--foggy);line-height:1.5">Calculate GPU requirements for serving Llama 3.1, Mistral, Mixtral, and other open-source LLMs to concurrent users.</p>
+    </div>
+    <div style="background:var(--gray-50);border-radius:var(--r-lg);padding:var(--sp4);border:1px solid var(--gray-100)">
+      <h3 style="font-size:13px;font-weight:700;color:var(--gray-800);margin-bottom:var(--sp2)">Fine-tuning GPU calculator</h3>
+      <p style="font-size:12px;color:var(--foggy);line-height:1.5">Estimate VRAM for full fine-tuning, LoRA adapters, and QLoRA 4-bit training across 1B to 70B+ parameter models.</p>
+    </div>
+    <div style="background:var(--gray-50);border-radius:var(--r-lg);padding:var(--sp4);border:1px solid var(--gray-100)">
+      <h3 style="font-size:13px;font-weight:700;color:var(--gray-800);margin-bottom:var(--sp2)">RAG pipeline sizing</h3>
+      <p style="font-size:12px;color:var(--foggy);line-height:1.5">Size retrieval-augmented generation systems including base LLM VRAM plus embedding model overhead for document retrieval.</p>
+    </div>
+    <div style="background:var(--gray-50);border-radius:var(--r-lg);padding:var(--sp4);border:1px solid var(--gray-100)">
+      <h3 style="font-size:13px;font-weight:700;color:var(--gray-800);margin-bottom:var(--sp2)">AI cost calculator</h3>
+      <p style="font-size:12px;color:var(--foggy);line-height:1.5">Compare cloud GPU costs (H100, A100, T4) vs on-prem purchase price with breakeven analysis for your usage hours.</p>
+    </div>
+  </div>
+
+  <h2 style="font-size:clamp(20px,2.5vw,26px);font-weight:700;color:var(--gray-800);letter-spacing:-0.5px;margin-bottom:var(--sp3)">GPU database</h2>
+  <p style="font-size:13px;color:var(--foggy);line-height:1.7;max-width:680px">AI Advisor includes pricing and specifications for 9 production GPUs: NVIDIA H100 80GB SXM5 ($3.20/hr), H100 80GB PCIe ($2.60/hr), A100 80GB ($2.10/hr), A100 40GB ($1.60/hr), L40S 48GB ($1.40/hr), RTX 4090 24GB ($0.80/hr), A10G 24GB ($0.90/hr), T4 16GB ($0.35/hr), and V100 16GB ($0.55/hr). All pricing reflects typical cloud spot/on-demand rates.</p>
+</div>
 
 <footer>
   <p>Built by <a href="https://shantanu9.github.io">Shantanu</a> — AI Product Manager · Azure AI Factory · <a href="mailto:shantanuiimu@gmail.com">shantanuiimu@gmail.com</a></p>

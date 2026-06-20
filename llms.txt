@@ -1,0 +1,18 @@
+# AI Advisor — GPU & Cost Sizing Engine
+# https://aiadvisor.co.in
+
+## About
+AI Advisor is a free AI infrastructure sizing tool built by Shantanu Singh, an AI Product Manager at HCLTech. It helps engineers, PMs, and enterprise buyers calculate GPU requirements, VRAM, cloud costs, and TCO for AI workloads.
+
+## What it does
+- Calculates VRAM requirements for LLM inference, fine-tuning, RAG, and embeddings
+- Recommends GPUs from a database of 9 production-grade options (H100, A100, L40S, T4, etc.)
+- Provides cloud cost estimates (hourly, monthly, yearly)
+- Calculates on-prem vs cloud TCO and breakeven analysis
+- Exports results as JSON or CSV
+
+## Built by
+Shantanu Singh — AI Product Manager
+Website: https://shantanu9.github.io
+LinkedIn: https://www.linkedin.com/in/shantanuss/
+Email: shantanuiimu@gmail.com
