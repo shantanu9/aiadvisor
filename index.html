@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Advisor — GPU & Cost Sizing Engine</title>
+<meta name="description" content="Size your AI workload. Get GPU recommendations, VRAM requirements, and full cost breakdown instantly."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080810;--s1:#0d0d1a;--s2:#12121f;--s3:#181828;--s4:#1e1e30;
+  --b:rgba(255,255,255,0.06);--b2:rgba(255,255,255,0.1);--b3:rgba(255,255,255,0.18);
+  --ink:#fff;--ink2:rgba(255,255,255,0.72);--ink3:rgba(255,255,255,0.42);--ink4:rgba(255,255,255,0.2);
+  --p:#8b7ff5;--p2:rgba(139,127,245,0.14);--p3:rgba(139,127,245,0.07);--pg:rgba(139,127,245,0.35);
+  --g:#00d4aa;--g2:rgba(0,212,170,0.13);--g3:rgba(0,212,170,0.06);
+  --o:#ff9500;--o2:rgba(255,149,0,0.13);
+  --r:8px;--rl:14px;--rxl:20px;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;line-height:1.6;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+/* MESH */
+.mesh{position:fixed;inset:0;pointer-events:none;z-index:0}
+.mesh::before{content:'';position:absolute;width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(139,127,245,0.1) 0%,transparent 70%);top:-250px;left:-150px;animation:d1 14s ease-in-out infinite alternate}
+.mesh::after{content:'';position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(0,212,170,0.07) 0%,transparent 70%);bottom:-150px;right:-100px;animation:d2 18s ease-in-out infinite alternate}
+@keyframes d1{to{transform:translate(80px,50px)}}
+@keyframes d2{to{transform:translate(-50px,-70px)}}
+.grid{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(255,255,255,0.016) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.016) 1px,transparent 1px);background-size:52px 52px}
+
+/* HEADER */
+header{position:sticky;top:0;z-index:200;height:56px;display:flex;align-items:center;padding:0 2rem;background:rgba(8,8,16,0.88);backdrop-filter:blur(20px);border-bottom:1px solid var(--b)}
+.nav{width:100%;max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.5px}
+.logo-icon{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#8b7ff5,#5b9cf5);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 20px rgba(139,127,245,0.3)}
+.live{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--g);background:var(--g3);border:1px solid rgba(0,212,170,0.18);padding:3px 10px;border-radius:20px;letter-spacing:0.5px;display:flex;align-items:center;gap:5px}
+.live::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--g);animation:bk 2s ease-in-out infinite}
+@keyframes bk{0%,100%{opacity:1}50%{opacity:0.25}}
+.back{font-size:12px;color:var(--ink3);text-decoration:none;padding:5px 12px;border:1px solid var(--b2);border-radius:20px;transition:all .15s}
+.back:hover{color:var(--ink);border-color:var(--b3)}
+
+/* HERO */
+.hero{position:relative;z-index:1;text-align:center;padding:4.5rem 2rem 3rem;max-width:720px;margin:0 auto}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--p3);border:1px solid rgba(139,127,245,0.18);color:var(--p);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:5px 14px;border-radius:20px;margin-bottom:1.75rem}
+h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(34px,5vw,58px);font-weight:700;letter-spacing:-2.5px;line-height:1.04;margin-bottom:1.1rem;background:linear-gradient(135deg,#fff 40%,rgba(139,127,245,0.85) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{font-size:15px;color:var(--ink3);font-weight:300;line-height:1.75;max-width:500px;margin:0 auto}
+
+/* MAIN */
+.main{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:2.5rem 2rem 5rem;display:grid;grid-template-columns:1fr 400px;gap:2rem;align-items:start}
+
+/* FORM PANEL */
+.form-panel{display:flex;flex-direction:column;gap:1.25rem}
+
+/* STEP CARD */
+.step-card{background:var(--s1);border:1px solid var(--b);border-radius:var(--rl);overflow:hidden;transition:border-color .2s}
+.step-card.active{border-color:rgba(139,127,245,0.3)}
+.step-head{padding:1rem 1.25rem;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--b);cursor:pointer;user-select:none}
+.step-num{width:26px;height:26px;border-radius:7px;background:var(--p3);border:1px solid rgba(139,127,245,0.2);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--p);font-weight:600;flex-shrink:0;transition:all .2s}
+.step-card.done .step-num{background:var(--g2);border-color:rgba(0,212,170,0.3);color:var(--g)}
+.step-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;color:var(--ink)}
+.step-subtitle{font-size:12px;color:var(--ink3);margin-left:auto}
+.step-body{padding:1.25rem;display:none}
+.step-card.active .step-body{display:block}
+
+/* OPTION GRID */
+.opt-grid{display:grid;gap:8px}
+.opt-grid.cols2{grid-template-columns:1fr 1fr}
+.opt-grid.cols3{grid-template-columns:repeat(3,1fr)}
+.opt-btn{background:var(--s2);border:1.5px solid var(--b);border-radius:var(--r);padding:10px 14px;cursor:pointer;transition:all .15s;text-align:left;color:var(--ink2);display:flex;flex-direction:column;gap:3px}
+.opt-btn:hover{border-color:var(--b3);background:var(--s3)}
+.opt-btn.selected{border-color:var(--p);background:var(--p3);color:var(--ink)}
+.opt-label{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600}
+.opt-desc{font-size:11px;color:var(--ink3);line-height:1.4}
+.opt-btn.selected .opt-desc{color:rgba(139,127,245,0.7)}
+
+/* SLIDER */
+.slider-wrap{margin-top:0.5rem}
+.slider-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.6rem}
+.slider-label{font-size:12px;color:var(--ink3)}
+.slider-val{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--p)}
+.slider-val .unit{font-size:11px;color:var(--ink3);font-weight:400;margin-left:2px}
+input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:var(--s3);outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--p);cursor:pointer;box-shadow:0 0 10px rgba(139,127,245,0.4)}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--p);cursor:pointer;border:none}
+.slider-marks{display:flex;justify-content:space-between;margin-top:5px}
+.slider-marks span{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ink4)}
+
+/* SELECT */
+select{width:100%;background:var(--s2);border:1.5px solid var(--b);border-radius:var(--r);color:var(--ink);font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;cursor:pointer;-webkit-appearance:none;appearance:none;transition:border-color .15s}
+select:focus{border-color:rgba(139,127,245,0.5)}
+.select-wrap{position:relative}
+.select-wrap::after{content:'▾';position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--ink3);pointer-events:none;font-size:11px}
+
+/* TAGS (multi select) */
+.tag-grid{display:flex;flex-wrap:wrap;gap:6px}
+.tag-btn{font-size:11px;font-family:'JetBrains Mono',monospace;padding:5px 12px;border-radius:6px;border:1px solid var(--b2);color:var(--ink3);background:var(--s2);cursor:pointer;transition:all .15s;letter-spacing:0.3px}
+.tag-btn:hover{border-color:var(--b3);color:var(--ink)}
+.tag-btn.selected{background:var(--p2);border-color:rgba(139,127,245,0.4);color:var(--p)}
+
+/* FIELD */
+.field{margin-bottom:1rem}
+.field:last-child{margin-bottom:0}
+.field-label{font-size:11px;color:var(--ink3);margin-bottom:6px;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;text-transform:uppercase}
+
+/* CALCULATE BTN */
+.calc-btn{width:100%;padding:13px;border-radius:var(--r);background:linear-gradient(135deg,var(--p),#5b9cf5);border:none;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:opacity .15s;letter-spacing:-0.3px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 20px rgba(139,127,245,0.35)}
+.calc-btn:hover{opacity:0.88}
+.calc-btn:disabled{opacity:0.4;cursor:not-allowed}
+
+/* STEP NAV */
+.step-nav{display:flex;gap:8px;margin-top:1rem}
+.snav{flex:1;padding:9px;border-radius:var(--r);border:1px solid var(--b2);background:var(--s2);color:var(--ink3);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
+.snav:hover{border-color:var(--b3);color:var(--ink)}
+.snav.next{background:var(--p2);border-color:rgba(139,127,245,0.3);color:var(--p)}
+.snav.next:hover{background:var(--p);color:#fff}
+
+/* PROGRESS */
+.progress-bar{height:2px;background:var(--b2);border-radius:1px;margin:0 1.25rem;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--p),var(--g));border-radius:1px;transition:width .4s ease}
+
+/* RESULTS PANEL */
+.result-panel{position:sticky;top:72px;display:flex;flex-direction:column;gap:1rem}
+.empty-box{background:var(--s1);border:1px solid var(--b);border-radius:var(--rl);padding:3rem 2rem;text-align:center}
+.empty-icon{font-size:44px;margin-bottom:1rem;opacity:0.35}
+.empty-t{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;color:var(--ink3);margin-bottom:0.4rem}
+.empty-s{font-size:12px;color:var(--ink4);line-height:1.6}
+
+/* RESULT CARDS */
+.rc{background:var(--s1);border:1px solid var(--b);border-radius:var(--rl);overflow:hidden;animation:fadeUp .3s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.rc-head{padding:0.85rem 1.1rem;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between}
+.rc-title{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+.rc-dot{width:6px;height:6px;border-radius:50%}
+.dot-p{background:var(--p);box-shadow:0 0 6px var(--pg)}
+.dot-g{background:var(--g)}
+.dot-o{background:var(--o)}
+.rc-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:5px}
+.bp{background:var(--p2);color:var(--p)}
+.bg{background:var(--g2);color:var(--g)}
+.bo{background:var(--o2);color:var(--o)}
+
+/* VRAM BLOCK */
+.vb{padding:1.1rem}
+.vb-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem}
+.vb-cell{background:var(--s2);border-radius:var(--r);padding:10px 12px;border:1px solid var(--b)}
+.vb-label{font-size:10px;color:var(--ink4);font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;margin-bottom:3px}
+.vb-val{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-0.5px}
+.vb-val .unit{font-size:11px;font-weight:400;color:var(--ink3);margin-left:2px}
+.bar-wrap{background:var(--s3);border-radius:3px;height:5px;overflow:hidden;margin-bottom:4px}
+.bar-fill{height:100%;border-radius:3px;transition:width 1s ease}
+.bar-p{background:linear-gradient(90deg,var(--g),var(--p))}
+.bar-note{font-size:11px;color:var(--ink3);line-height:1.5}
+
+/* GPU CARDS */
+.gpu-list{padding:0 1.1rem 1.1rem;display:flex;flex-direction:column;gap:7px}
+.gc{background:var(--s2);border:1.5px solid var(--b);border-radius:var(--r);padding:10px 12px;transition:border-color .15s}
+.gc.best{border-color:rgba(0,212,170,0.3);background:rgba(0,212,170,0.04)}
+.gc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.gc-name{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;color:var(--ink)}
+.gc-fit{font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:0.5px}
+.f-best{background:var(--g2);color:var(--g)}
+.f-good{background:var(--p2);color:var(--p)}
+.f-budget{background:var(--o2);color:var(--o)}
+.gc-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.gm{background:var(--s3);border-radius:5px;padding:5px 7px}
+.gm-l{font-size:9px;color:var(--ink4);margin-bottom:1px}
+.gm-v{font-size:11px;font-weight:500;color:var(--ink2)}
+.score-bar-wrap{background:var(--s3);border-radius:2px;height:3px;margin-top:6px;overflow:hidden}
+.score-bar{height:100%;border-radius:2px;transition:width 0.8s ease}
+
+/* COST */
+.cost-b{padding:1.1rem}
+.cost-row{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:8px}
+.cost-cell{background:var(--s2);border-radius:var(--r);padding:9px 11px;border:1px solid var(--b)}
+.cc-l{font-size:9px;color:var(--ink4);font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;margin-bottom:3px}
+.cc-v{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:var(--ink)}
+.tco-row{display:flex;align-items:center;gap:12px;background:var(--s2);border:1px solid var(--b);border-radius:var(--r);padding:10px 12px}
+.tco-num{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;color:var(--o);flex-shrink:0;letter-spacing:-1px}
+.tco-text{font-size:11px;color:var(--ink3);line-height:1.5}
+.tco-text strong{color:var(--ink);display:block;margin-bottom:1px}
+
+/* RECOMMENDATION */
+.rec-b{padding:1.1rem}
+.rec-text{font-size:12px;color:var(--ink2);line-height:1.7;background:var(--s2);border-radius:var(--r);padding:10px 12px;border:1px solid var(--b);margin-bottom:0.75rem}
+.tag-row{display:flex;flex-wrap:wrap;gap:5px}
+.tag-pill{font-family:'JetBrains Mono',monospace;font-size:9px;padding:3px 9px;border-radius:4px;letter-spacing:0.5px}
+.tp{background:var(--p2);color:var(--p)}
+.tg{background:var(--g2);color:var(--g)}
+.to{background:var(--o2);color:var(--o)}
+
+/* EXPORT */
+.exp-row{padding:0.75rem 1.1rem;border-top:1px solid var(--b);display:flex;gap:6px}
+.eb{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:500;padding:5px 12px;border-radius:5px;border:1px solid var(--b2);color:var(--ink3);background:transparent;cursor:pointer;transition:all .15s;letter-spacing:0.5px}
+.eb:hover{border-color:var(--p);color:var(--p);background:var(--p3)}
+
+/* RESET */
+.reset-btn{width:100%;padding:10px;border-radius:var(--r);border:1px solid var(--b2);background:transparent;color:var(--ink3);font-size:13px;cursor:pointer;transition:all .15s;margin-top:0.5rem}
+.reset-btn:hover{border-color:var(--b3);color:var(--ink)}
+
+footer{position:relative;z-index:1;border-top:1px solid var(--b);padding:1.5rem 2rem;text-align:center}
+footer p{font-size:11px;color:var(--ink4)}
+footer a{color:var(--p);text-decoration:none}
+
+@media(max-width:900px){
+  .main{grid-template-columns:1fr}
+  .result-panel{position:static}
+}
+@media(max-width:600px){
+  .hero{padding:3rem 1.5rem 2rem}
+  .main{padding:1.5rem 1rem 3rem}
+  header{padding:0 1rem}
+  .opt-grid.cols3{grid-template-columns:1fr 1fr}
+  .gc-metrics{grid-template-columns:repeat(2,1fr)}
+  .cost-row{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="mesh"></div>
+<div class="grid"></div>
+
+<header>
+  <nav class="nav">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <div>AI Advisor</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ink4);letter-spacing:1px">GPU SIZING ENGINE</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="live">Sizing Engine v1.0</span>
+      <a href="https://shantanu9.github.io" class="back">← Portfolio</a>
+    </div>
+  </nav>
+</header>
+
+<div class="hero">
+  <div class="chip">✦ AI Infrastructure Sizing Engine</div>
+  <h1>Size your AI workload.<br/>In 4 steps.</h1>
+  <p class="hero-sub">Answer a few structured questions about your workload. The engine calculates VRAM, recommends GPUs, and shows you full cost breakdown — no guesswork.</p>
+</div>
+
+<div class="main">
+
+  <!-- LEFT: FORM -->
+  <div class="form-panel">
+
+    <!-- STEP 1: WORKLOAD TYPE -->
+    <div class="step-card active" id="step1">
+      <div class="step-head" onclick="toggleStep(1)">
+        <div class="step-num" id="sn1">1</div>
+        <div>
+          <div class="step-title">Workload Type</div>
+        </div>
+        <div class="step-subtitle" id="ss1">Select one</div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="pb1" style="width:0%"></div></div>
+      <div class="step-body" id="sb1">
+        <div class="opt-grid cols2" style="margin-bottom:1rem">
+          <button class="opt-btn" onclick="selectOpt('workload','inference',this)">
+            <span class="opt-label">🧠 Inference</span>
+            <span class="opt-desc">Serve a model to users, APIs, or apps</span>
+          </button>
+          <button class="opt-btn" onclick="selectOpt('workload','finetuning',this)">
+            <span class="opt-label">🔬 Fine-tuning</span>
+            <span class="opt-desc">Train/adapt a model on custom data</span>
+          </button>
+          <button class="opt-btn" onclick="selectOpt('workload','rag',this)">
+            <span class="opt-label">📚 RAG Pipeline</span>
+            <span class="opt-desc">Retrieval-augmented generation</span>
+          </button>
+          <button class="opt-btn" onclick="selectOpt('workload','embeddings',this)">
+            <span class="opt-label">⚙️ Embeddings</span>
+            <span class="opt-desc">Vectorize text at scale</span>
+          </button>
+        </div>
+        <div class="step-nav"><button class="snav next" onclick="nextStep(1)">Next →</button></div>
+      </div>
+    </div>
+
+    <!-- STEP 2: MODEL & SCALE -->
+    <div class="step-card" id="step2">
+      <div class="step-head" onclick="toggleStep(2)">
+        <div class="step-num" id="sn2">2</div>
+        <div><div class="step-title">Model & Scale</div></div>
+        <div class="step-subtitle" id="ss2">Model size + load</div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="pb2" style="width:0%"></div></div>
+      <div class="step-body" id="sb2">
+
+        <div class="field">
+          <div class="field-label">Model Size</div>
+          <div class="opt-grid cols3">
+            <button class="opt-btn" onclick="selectOpt('modelSize','1-3B',this)"><span class="opt-label">1–3B</span><span class="opt-desc">Small / edge</span></button>
+            <button class="opt-btn" onclick="selectOpt('modelSize','7B',this)"><span class="opt-label">7B</span><span class="opt-desc">Efficient</span></button>
+            <button class="opt-btn" onclick="selectOpt('modelSize','13B',this)"><span class="opt-label">13B</span><span class="opt-desc">Balanced</span></button>
+            <button class="opt-btn" onclick="selectOpt('modelSize','34B',this)"><span class="opt-label">34B</span><span class="opt-desc">High quality</span></button>
+            <button class="opt-btn" onclick="selectOpt('modelSize','70B',this)"><span class="opt-label">70B</span><span class="opt-desc">SOTA</span></button>
+            <button class="opt-btn" onclick="selectOpt('modelSize','>70B',this)"><span class="opt-label">>70B</span><span class="opt-desc">Frontier</span></button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Precision / Quantization</div>
+          <div class="opt-grid cols2">
+            <button class="opt-btn" onclick="selectOpt('precision','fp16',this)"><span class="opt-label">FP16</span><span class="opt-desc">Full precision</span></button>
+            <button class="opt-btn" onclick="selectOpt('precision','int8',this)"><span class="opt-label">INT8</span><span class="opt-desc">~2x memory saving</span></button>
+            <button class="opt-btn" onclick="selectOpt('precision','qlora',this)"><span class="opt-label">QLoRA 4-bit</span><span class="opt-desc">~4x memory saving</span></button>
+            <button class="opt-btn" onclick="selectOpt('precision','lora',this)"><span class="opt-label">LoRA</span><span class="opt-desc">~2x memory saving</span></button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label" id="scaleLabel">Concurrent Users</div>
+          <div class="slider-wrap">
+            <div class="slider-top">
+              <span class="slider-label" id="scaleDesc">Simultaneous requests</span>
+              <span class="slider-val"><span id="scaleVal">10</span><span class="unit" id="scaleUnit">users</span></span>
+            </div>
+            <input type="range" id="scaleSlider" min="1" max="100" value="10" oninput="updateSlider('scale',this.value)"/>
+            <div class="slider-marks"><span>1</span><span>25</span><span>50</span><span>75</span><span>100+</span></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Context / Sequence Length</div>
+          <div class="opt-grid cols3">
+            <button class="opt-btn" onclick="selectOpt('context','2k',this)"><span class="opt-label">2K</span><span class="opt-desc">Short</span></button>
+            <button class="opt-btn" onclick="selectOpt('context','8k',this)"><span class="opt-label">8K</span><span class="opt-desc">Medium</span></button>
+            <button class="opt-btn" onclick="selectOpt('context','32k',this)"><span class="opt-label">32K</span><span class="opt-desc">Long</span></button>
+            <button class="opt-btn" onclick="selectOpt('context','64k',this)"><span class="opt-label">64K</span><span class="opt-desc">Very long</span></button>
+            <button class="opt-btn" onclick="selectOpt('context','128k',this)"><span class="opt-label">128K</span><span class="opt-desc">Max context</span></button>
+          </div>
+        </div>
+
+        <div class="step-nav">
+          <button class="snav" onclick="prevStep(2)">← Back</button>
+          <button class="snav next" onclick="nextStep(2)">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: INFRA PREFERENCE -->
+    <div class="step-card" id="step3">
+      <div class="step-head" onclick="toggleStep(3)">
+        <div class="step-num" id="sn3">3</div>
+        <div><div class="step-title">Infrastructure & Use Case</div></div>
+        <div class="step-subtitle" id="ss3">Deployment context</div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="pb3" style="width:0%"></div></div>
+      <div class="step-body" id="sb3">
+
+        <div class="field">
+          <div class="field-label">Deployment Target</div>
+          <div class="opt-grid cols3">
+            <button class="opt-btn" onclick="selectOpt('deploy','cloud',this)"><span class="opt-label">☁️ Cloud</span><span class="opt-desc">AWS / Azure / GCP</span></button>
+            <button class="opt-btn" onclick="selectOpt('deploy','onprem',this)"><span class="opt-label">🖥️ On-prem</span><span class="opt-desc">Own hardware</span></button>
+            <button class="opt-btn" onclick="selectOpt('deploy','both',this)"><span class="opt-label">⚖️ Compare</span><span class="opt-desc">Show both options</span></button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Latency Requirement</div>
+          <div class="opt-grid cols3">
+            <button class="opt-btn" onclick="selectOpt('latency','realtime',this)"><span class="opt-label">⚡ Real-time</span><span class="opt-desc">&lt;500ms</span></button>
+            <button class="opt-btn" onclick="selectOpt('latency','interactive',this)"><span class="opt-label">🙋 Interactive</span><span class="opt-desc">&lt;3s</span></button>
+            <button class="opt-btn" onclick="selectOpt('latency','batch',this)"><span class="opt-label">📦 Batch</span><span class="opt-desc">Minutes OK</span></button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Stage</div>
+          <div class="opt-grid cols2">
+            <button class="opt-btn" onclick="selectOpt('stage','prototype',this)"><span class="opt-label">🧪 Prototype</span><span class="opt-desc">Testing / PoC</span></button>
+            <button class="opt-btn" onclick="selectOpt('stage','production',this)"><span class="opt-label">🚀 Production</span><span class="opt-desc">Live workload</span></button>
+          </div>
+        </div>
+
+        <div class="step-nav">
+          <button class="snav" onclick="prevStep(3)">← Back</button>
+          <button class="snav next" onclick="nextStep(3)">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4: BUDGET -->
+    <div class="step-card" id="step4">
+      <div class="step-head" onclick="toggleStep(4)">
+        <div class="step-num" id="sn4">4</div>
+        <div><div class="step-title">Budget & Hours</div></div>
+        <div class="step-subtitle" id="ss4">Cost parameters</div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="pb4" style="width:0%"></div></div>
+      <div class="step-body" id="sb4">
+
+        <div class="field">
+          <div class="field-label">Monthly Cloud Budget</div>
+          <div class="opt-grid cols2">
+            <button class="opt-btn" onclick="selectOpt('budget','<500',this)"><span class="opt-label">&lt; $500/mo</span><span class="opt-desc">Starter</span></button>
+            <button class="opt-btn" onclick="selectOpt('budget','500-2k',this)"><span class="opt-label">$500–2K/mo</span><span class="opt-desc">Small team</span></button>
+            <button class="opt-btn" onclick="selectOpt('budget','2k-10k',this)"><span class="opt-label">$2K–10K/mo</span><span class="opt-desc">Scale-up</span></button>
+            <button class="opt-btn" onclick="selectOpt('budget','>10k',this)"><span class="opt-label">&gt; $10K/mo</span><span class="opt-desc">Enterprise</span></button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">Usage Hours per Day</div>
+          <div class="slider-wrap">
+            <div class="slider-top">
+              <span class="slider-label">Hours GPU is active daily</span>
+              <span class="slider-val"><span id="hoursVal">8</span><span class="unit">hrs/day</span></span>
+            </div>
+            <input type="range" id="hoursSlider" min="1" max="24" value="8" oninput="updateSlider('hours',this.value)"/>
+            <div class="slider-marks"><span>1</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
+          </div>
+        </div>
+
+        <div class="step-nav">
+          <button class="snav" onclick="prevStep(4)">← Back</button>
+        </div>
+
+        <button class="calc-btn" onclick="calculate()" id="calcBtn" style="margin-top:1rem">
+          ⚡ Calculate GPU & Cost
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: RESULTS -->
+  <div class="result-panel" id="resultPanel">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:0.5rem;display:flex;align-items:center;gap:8px"><span style="display:block;width:16px;height:1px;background:var(--b3)"></span>Sizing Output</div>
+    <div class="empty-box" id="emptyBox">
+      <div class="empty-icon">⚡</div>
+      <div class="empty-t">Complete the 4 steps</div>
+      <div class="empty-s">Fill in your workload details on the left. GPU recommendations, VRAM requirements, and cost breakdown will appear here instantly.</div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>Built by <a href="https://shantanu9.github.io">Shantanu</a> — AI Product Manager · <a href="mailto:shantanuiimu@gmail.com">shantanuiimu@gmail.com</a> · aiadvisor.co.in</p>
+</footer>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────
+const state = {
+  workload: null, modelSize: null, precision: 'fp16',
+  scale: 10, context: '8k', deploy: 'cloud',
+  latency: 'interactive', stage: 'production',
+  budget: null, hours: 8
+};
+let currentStep = 1;
+let resultData = null;
+
+// ─── GPU DATABASE ─────────────────────────────────────────
+const GPUS = [
+  {name:'NVIDIA H100 80GB SXM5', vram:80, cloudHr:3.20, buyPrice:28000, tier:'enterprise', tflops:989},
+  {name:'NVIDIA H100 80GB PCIe', vram:80, cloudHr:2.60, buyPrice:25000, tier:'enterprise', tflops:756},
+  {name:'NVIDIA A100 80GB SXM', vram:80, cloudHr:2.10, buyPrice:15000, tier:'pro', tflops:312},
+  {name:'NVIDIA A100 40GB', vram:40, cloudHr:1.60, buyPrice:10000, tier:'pro', tflops:312},
+  {name:'NVIDIA L40S 48GB', vram:48, cloudHr:1.40, buyPrice:8500, tier:'pro', tflops:362},
+  {name:'NVIDIA RTX 4090 24GB', vram:24, cloudHr:0.80, buyPrice:2000, tier:'consumer', tflops:82},
+  {name:'NVIDIA A10G 24GB', vram:24, cloudHr:0.90, buyPrice:5000, tier:'mid', tflops:125},
+  {name:'NVIDIA T4 16GB', vram:16, cloudHr:0.35, buyPrice:2500, tier:'budget', tflops:65},
+  {name:'NVIDIA V100 16GB', vram:16, cloudHr:0.55, buyPrice:3000, tier:'budget', tflops:112},
+];
+
+// ─── VRAM SIZING ENGINE ───────────────────────────────────
+const MODEL_PARAMS = {'1-3B':2,'7B':7,'13B':13,'34B':34,'70B':70,'>70B':140};
+const PRECISION_MULT = {'fp16':2,'int8':1,'qlora':0.5,'lora':1};
+const CONTEXT_OVERHEAD = {'2k':0.5,'8k':1,'32k':2,'64k':3,'128k':5};
+
+function calcVRAM() {
+  const params = MODEL_PARAMS[state.modelSize] || 7;
+  const bytesPerParam = PRECISION_MULT[state.precision] || 2;
+  const baseVRAM = params * bytesPerParam;
+
+  let overhead = 1.2; // KV cache + activations base
+  overhead += CONTEXT_OVERHEAD[state.context] || 1;
+
+  let scaleMultiplier = 1;
+  if (state.workload === 'inference') {
+    scaleMultiplier = 1 + (state.scale / 100) * 0.8;
+  } else if (state.workload === 'finetuning') {
+    scaleMultiplier = state.precision === 'qlora' ? 1.5 : 3;
+  } else if (state.workload === 'rag') {
+    overhead += 4; // embedding model
+  } else if (state.workload === 'embeddings') {
+    scaleMultiplier = 1;
+    overhead = 1.1;
+  }
+
+  const totalVRAM = Math.ceil(baseVRAM * overhead * scaleMultiplier);
+  return { totalVRAM, modelVRAM: Math.round(baseVRAM), overhead: Math.round((overhead-1)*100) };
+}
+
+function getGPURecs(vramNeeded) {
+  const gpus = GPUS
+    .map(g => {
+      const gpuCount = Math.ceil(vramNeeded / g.vram);
+      const effectiveHr = g.cloudHr * gpuCount;
+      let score = 100;
+      if (gpuCount > 1) score -= 20;
+      if (g.tier === 'budget' && state.stage === 'production') score -= 15;
+      if (g.tier === 'consumer' && state.stage === 'production') score -= 10;
+      if (state.latency === 'realtime' && g.tflops < 200) score -= 20;
+      if (state.budget === '<500' && effectiveHr * state.hours * 30 > 500) score -= 30;
+      score = Math.max(0, score);
+      return { ...g, gpuCount, effectiveHr, score };
+    })
+    .filter(g => g.vram * g.gpuCount >= vramNeeded)
+    .sort((a,b) => b.score - a.score)
+    .slice(0, 4);
+
+  return gpus.map((g, i) => ({
+    ...g,
+    fit: i === 0 ? 'best' : i === 1 ? 'good' : 'budget'
+  }));
+}
+
+function calcCosts(gpu) {
+  const hrly = gpu.effectiveHr;
+  const daily = hrly * state.hours;
+  const monthly = daily * 30;
+  const yearly = monthly * 12;
+  const onprem = gpu.buyPrice * gpu.gpuCount;
+  const breakeven = onprem / monthly;
+  return {
+    hourly: fmt(hrly), daily: fmt(daily),
+    monthly: fmt(monthly), yearly: fmt(yearly),
+    onprem: '$' + onprem.toLocaleString(),
+    breakeven: Math.round(breakeven)
+  };
+}
+
+function fmt(n) {
+  if (n >= 1000) return '$' + (n/1000).toFixed(1) + 'K';
+  return '$' + n.toFixed(2);
+}
+
+function getRecommendedModel() {
+  const map = {
+    'inference': {'1-3B':'Phi-3 Mini / Qwen2 1.5B','7B':'Llama 3.1 8B / Mistral 7B','13B':'Llama 2 13B / Qwen 14B','34B':'CodeLlama 34B / Qwen 32B','70B':'Llama 3.1 70B / Mixtral 8x7B','>70B':'Llama 3.1 405B / Mixtral 8x22B'},
+    'finetuning': {'1-3B':'Phi-3 Mini (QLoRA)','7B':'Mistral 7B / Llama 3 8B','13B':'Llama 2 13B','34B':'CodeLlama 34B','70B':'Llama 2 70B (multi-GPU)','>70B':'Llama 3.1 405B (cluster)'},
+    'rag': {'1-3B':'Phi-3 Mini + BGE-small','7B':'Mistral 7B + BGE-large','13B':'Llama 2 13B + E5-large','34B':'Mixtral + OpenAI Embeddings','70B':'Llama 3.1 70B + ColBERT','>70B':'GPT-4 API + Dense Retrieval'},
+    'embeddings': {'1-3B':'BGE-small / MiniLM','7B':'BGE-large / E5-large','13B':'E5-mistral-7b-instruct','34B':'SFR-Embedding-Mistral','70B':'text-embedding-3-large','*':'text-embedding-3-large (API)'}
+  };
+  return (map[state.workload] || {})[state.modelSize] || 'Custom model selection recommended';
+}
+
+// ─── CALCULATE ─────────────────────────────────────────────
+function calculate() {
+  const missing = [];
+  if (!state.workload) missing.push('Workload type');
+  if (!state.modelSize) missing.push('Model size');
+  if (!state.deploy) missing.push('Deployment target');
+
+  if (missing.length) {
+    alert('Please complete: ' + missing.join(', '));
+    return;
+  }
+
+  const { totalVRAM, modelVRAM } = calcVRAM();
+  const gpus = getGPURecs(totalVRAM);
+  const topGpu = gpus[0];
+  const costs = calcCosts(topGpu);
+  const recModel = getRecommendedModel();
+  const pct = Math.min(Math.round((totalVRAM / topGpu.vram) * 100), 100);
+
+  resultData = { totalVRAM, modelVRAM, gpus, costs, topGpu, recModel, pct };
+  renderResults(resultData);
+}
+
+// ─── RENDER ────────────────────────────────────────────────
+function renderResults(d) {
+  const panel = document.getElementById('resultPanel');
+  const fitClass = {best:'f-best',good:'f-good',budget:'f-budget'};
+  const barColor = {best:'background:var(--g)',good:'background:var(--p)',budget:'background:var(--o)'};
+
+  const gpuHTML = d.gpus.map(g => `
+    <div class="gc ${g.fit==='best'?'best':''}">
+      <div class="gc-top">
+        <span class="gc-name">${g.name}${g.gpuCount>1?' ×'+g.gpuCount:''}</span>
+        <span class="gc-fit ${fitClass[g.fit]}">${g.fit}</span>
+      </div>
+      <div class="gc-metrics">
+        <div class="gm"><div class="gm-l">VRAM</div><div class="gm-v">${g.vram*g.gpuCount}GB</div></div>
+        <div class="gm"><div class="gm-l">$/hr</div><div class="gm-v">${fmt(g.effectiveHr)}</div></div>
+        <div class="gm"><div class="gm-l">GPUs</div><div class="gm-v">${g.gpuCount}×</div></div>
+        <div class="gm"><div class="gm-l">Score</div><div class="gm-v">${g.score}/100</div></div>
+      </div>
+      <div class="score-bar-wrap"><div class="score-bar" style="width:${g.score}%;${barColor[g.fit]}"></div></div>
+    </div>`).join('');
+
+  const tcoText = d.costs.breakeven < 6
+    ? 'On-prem pays off fast — buy hardware.'
+    : d.costs.breakeven < 18
+    ? 'Borderline — consider hybrid approach.'
+    : 'Cloud is more cost-effective for this workload.';
+
+  panel.innerHTML = `
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:0.5rem;display:flex;align-items:center;gap:8px"><span style="display:block;width:16px;height:1px;background:var(--b3)"></span>Sizing Output</div>
+
+    <div class="rc">
+      <div class="rc-head">
+        <span class="rc-title"><span class="rc-dot dot-p"></span>Memory Requirements</span>
+        <span class="rc-badge bp">${state.workload?.toUpperCase()}</span>
+      </div>
+      <div class="vb">
+        <div class="vb-row">
+          <div class="vb-cell">
+            <div class="vb-label">Total VRAM Needed</div>
+            <div class="vb-val">${d.totalVRAM}<span class="unit">GB</span></div>
+          </div>
+          <div class="vb-cell">
+            <div class="vb-label">Model Weight</div>
+            <div class="vb-val">${d.modelVRAM}<span class="unit">GB</span></div>
+          </div>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill bar-p" style="width:0%" id="vbar"></div></div>
+        <div class="bar-note">${d.pct}% of recommended GPU utilized · ${state.precision?.toUpperCase()} precision · ${state.context} context</div>
+        <div style="margin-top:8px;background:var(--s2);border-radius:var(--r);padding:9px 11px;border:1px solid var(--b);font-size:12px;color:var(--ink2)">
+          <strong style="color:var(--ink)">Recommended model:</strong> ${d.recModel}
+        </div>
+      </div>
+    </div>
+
+    <div class="rc">
+      <div class="rc-head">
+        <span class="rc-title"><span class="rc-dot dot-g"></span>GPU Recommendations</span>
+        <span class="rc-badge bg">${d.gpus.length} options</span>
+      </div>
+      <div class="gpu-list">${gpuHTML}</div>
+    </div>
+
+    <div class="rc">
+      <div class="rc-head">
+        <span class="rc-title"><span class="rc-dot dot-o"></span>Cost Breakdown</span>
+        <span class="rc-badge bo">TCO Analysis</span>
+      </div>
+      <div class="cost-b">
+        <div class="cost-row">
+          <div class="cost-cell"><div class="cc-l">Per Hour</div><div class="cc-v">${d.costs.hourly}</div></div>
+          <div class="cost-cell"><div class="cc-l">Per Month</div><div class="cc-v">${d.costs.monthly}</div></div>
+          <div class="cost-cell"><div class="cc-l">Per Year</div><div class="cc-v">${d.costs.yearly}</div></div>
+        </div>
+        <div class="tco-row">
+          <div class="tco-num">${d.costs.breakeven}mo</div>
+          <div class="tco-text">
+            <strong>On-prem: ${d.costs.onprem}</strong>
+            ${tcoText} Breakeven at ${d.costs.breakeven} months of cloud spend.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rc">
+      <div class="rc-head"><span class="rc-title"><span class="rc-dot dot-p"></span>Configuration Summary</span></div>
+      <div class="rec-b">
+        <div class="tag-row">
+          <span class="tag-pill tp">${state.workload}</span>
+          <span class="tag-pill tp">${state.modelSize} params</span>
+          <span class="tag-pill tp">${state.precision}</span>
+          <span class="tag-pill tg">${state.scale} ${state.workload==='finetuning'?'epochs':'users'}</span>
+          <span class="tag-pill tg">${state.context} context</span>
+          <span class="tag-pill to">${state.deploy}</span>
+          <span class="tag-pill to">${state.latency}</span>
+          <span class="tag-pill to">${state.stage}</span>
+        </div>
+      </div>
+      <div class="exp-row">
+        <button class="eb" onclick="expJSON()">↓ JSON</button>
+        <button class="eb" onclick="expCSV()">↓ CSV</button>
+        <button class="eb" id="cpBtn" onclick="cpText()">⎘ Copy</button>
+      </div>
+    </div>
+
+    <button class="reset-btn" onclick="resetAll()">↺ Start over</button>`;
+
+  setTimeout(() => {
+    const b = document.getElementById('vbar');
+    if (b) b.style.width = d.pct + '%';
+  }, 150);
+}
+
+// ─── FORM LOGIC ────────────────────────────────────────────
+function selectOpt(key, val, el) {
+  state[key] = val;
+  const parent = el.closest('.opt-grid, .tag-grid');
+  if (parent) parent.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function updateSlider(key, val) {
+  if (key === 'scale') { state.scale = parseInt(val); document.getElementById('scaleVal').textContent = val; }
+  if (key === 'hours') { state.hours = parseInt(val); document.getElementById('hoursVal').textContent = val; }
+}
+
+function toggleStep(n) {
+  const card = document.getElementById('step'+n);
+  const isActive = card.classList.contains('active');
+  if (!isActive) { card.classList.add('active'); }
+}
+
+function nextStep(n) {
+  document.getElementById('step'+n).classList.remove('active');
+  document.getElementById('sn'+n).textContent = '✓';
+  document.getElementById('step'+n).classList.add('done');
+  const next = document.getElementById('step'+(n+1));
+  if (next) { next.classList.add('active'); }
+  updateProgress(n, 100);
+}
+
+function prevStep(n) {
+  document.getElementById('step'+n).classList.remove('active');
+  document.getElementById('step'+(n-1)).classList.add('active');
+  document.getElementById('step'+(n-1)).classList.remove('done');
+  document.getElementById('sn'+(n-1)).textContent = n-1;
+}
+
+function updateProgress(step, pct) {
+  const b = document.getElementById('pb'+step);
+  if (b) b.style.width = pct + '%';
+}
+
+function resetAll() {
+  Object.assign(state, {workload:null,modelSize:null,precision:'fp16',scale:10,context:'8k',deploy:'cloud',latency:'interactive',stage:'production',budget:null,hours:8});
+  [1,2,3,4].forEach(n => {
+    const c = document.getElementById('step'+n);
+    c.classList.remove('active','done');
+    document.getElementById('sn'+n).textContent = n;
+    document.querySelectorAll('#sb'+n+' .opt-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('pb'+n).style.width = '0%';
+  });
+  document.getElementById('step1').classList.add('active');
+  document.getElementById('resultPanel').innerHTML = `
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:0.5rem;display:flex;align-items:center;gap:8px"><span style="display:block;width:16px;height:1px;background:var(--b3)"></span>Sizing Output</div>
+    <div class="empty-box">
+      <div class="empty-icon">⚡</div>
+      <div class="empty-t">Complete the 4 steps</div>
+      <div class="empty-s">Fill in your workload details on the left. GPU recommendations, VRAM requirements, and cost breakdown will appear here instantly.</div>
+    </div>`;
+}
+
+// ─── EXPORT ────────────────────────────────────────────────
+function expJSON() {
+  if (!resultData) return;
+  const blob = new Blob([JSON.stringify({inputs:state, outputs:resultData}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'ai-sizing.json'; a.click();
+}
+function expCSV() {
+  if (!resultData) return;
+  const d = resultData;
+  const rows = [['Field','Value'],['Workload',state.workload],['Model Size',state.modelSize],['Precision',state.precision],['Total VRAM',d.totalVRAM+'GB'],['Model VRAM',d.modelVRAM+'GB'],['Recommended Model',d.recModel],['Cost/hr',d.costs.hourly],['Cost/mo',d.costs.monthly],['Cost/yr',d.costs.yearly],['On-prem',d.costs.onprem],['Breakeven',d.costs.breakeven+' months'],...d.gpus.map(g=>[g.name,`${g.vram*g.gpuCount}GB | ${fmt(g.effectiveHr)}/hr | ${g.fit}`])];
+  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const b = new Blob([csv],{type:'text/csv'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'ai-sizing.csv'; a.click();
+}
+function cpText() {
+  if (!resultData) return;
+  const d = resultData;
+  const t = `AI Workload Sizing Report\n\nWorkload: ${state.workload} | Model: ${state.modelSize} ${state.precision}\nRecommended: ${d.recModel}\nTotal VRAM: ${d.totalVRAM}GB\nTop GPU: ${d.topGpu.name}\nCloud Cost: ${d.costs.hourly}/hr | ${d.costs.monthly}/mo\nOn-prem: ${d.costs.onprem} | Breakeven: ${d.costs.breakeven}mo\n\nGenerated by aiadvisor.co.in`;
+  navigator.clipboard.writeText(t).then(()=>{const b=document.getElementById('cpBtn');if(b){b.textContent='✓ Copied';setTimeout(()=>b.textContent='⎘ Copy',2000)}});
+}
+</script>
+</body>
+</html>
