@@ -4,7 +4,14 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>AI Advisor — GPU & Cost Sizing Engine</title>
-<meta name="description" content="Size your AI workload in 4 steps. Get GPU recommendations, VRAM requirements, and full cost breakdown instantly."/>
+<meta name="description" content="Free AI GPU sizing calculator. Estimate VRAM, GPU requirements, cloud costs, and AI infrastructure TCO for LLMs, RAG, inference, and fine-tuning workloads."/>
+<meta name="keywords" content="GPU sizing calculator, AI infrastructure calculator, VRAM calculator, LLM GPU requirements, H100 sizing, A100 sizing, AI TCO calculator, AI cost estimator"/>
+<meta name="robots" content="index,follow"/>
+<link rel="canonical" href="https://aiadvisor.co.in/"/>
+<meta property="og:title" content="AI GPU Sizing Calculator | AI Advisor"/>
+<meta property="og:description" content="Estimate VRAM, GPU requirements, cloud costs, and AI infrastructure TCO in minutes."/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://aiadvisor.co.in/"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
@@ -299,6 +306,17 @@ footer a{color:var(--rausch);text-decoration:none;font-weight:600}
   .si-label{display:none}
 }
 </style>
+
+<script type="application/ld+json">
+{
+ "@context":"https://schema.org",
+ "@type":"SoftwareApplication",
+ "name":"AI Advisor GPU Sizing Calculator",
+ "applicationCategory":"BusinessApplication",
+ "operatingSystem":"Web"
+}
+</script>
+
 </head>
 <body>
 
@@ -540,6 +558,50 @@ footer a{color:var(--rausch);text-decoration:none;font-weight:600}
   </div>
 
 </div>
+
+
+<section style="max-width:1120px;margin:0 auto;padding:32px;">
+<div style="background:#fff;border:1px solid #e5e5e5;border-radius:16px;padding:24px;margin-bottom:24px">
+<h2>Get a Detailed AI Infrastructure Report</h2>
+<p>Want architecture recommendations, GPU sizing rationale, cloud vs on-prem analysis, and cost estimates?</p>
+<form onsubmit="alert('Connect your email automation provider here.');return false;">
+<input type="email" placeholder="Enter your email" style="padding:12px;width:280px;max-width:100%;margin-right:8px">
+<button type="submit" style="padding:12px 18px">Get Report</button>
+</form>
+</div>
+
+<div style="background:#fff;border:1px solid #e5e5e5;border-radius:16px;padding:24px;margin-bottom:24px">
+<h2>How GPU Sizing Works</h2>
+<p>The calculator estimates VRAM requirements based on model size, quantization strategy, context window, workload type, and concurrency. It then maps requirements to common NVIDIA GPU options and estimates cloud and on-prem costs.</p>
+</div>
+
+<div style="background:#fff;border:1px solid #e5e5e5;border-radius:16px;padding:24px;margin-bottom:24px">
+<h2>Common AI Workloads</h2>
+<ul>
+<li>LLM Inference</li>
+<li>RAG Applications</li>
+<li>Fine-Tuning and QLoRA Training</li>
+<li>Embeddings Generation</li>
+<li>Agentic AI Systems</li>
+</ul>
+</div>
+
+<div style="background:#fff;border:1px solid #e5e5e5;border-radius:16px;padding:24px;margin-bottom:24px">
+<h2>Frequently Asked Questions</h2>
+<h3>How much VRAM does Llama 70B need?</h3>
+<p>Depending on precision and context length, Llama-class 70B models often require multi-GPU deployments or high-memory accelerators.</p>
+<h3>H100 vs A100?</h3>
+<p>H100 generally offers significantly higher performance and memory bandwidth for modern AI workloads.</p>
+<h3>What is AI TCO?</h3>
+<p>Total Cost of Ownership includes infrastructure, cloud spend, operations, maintenance, and utilization costs.</p>
+</div>
+
+<div style="background:#fff;border:1px solid #e5e5e5;border-radius:16px;padding:24px;">
+<h2>About the Creator</h2>
+<p>Built by Shantanu Goel, AI Product Manager focused on AI Infrastructure, Azure AI Factory, GPU sizing, AI economics, and enterprise AI adoption.</p>
+<p><strong>Consulting & Collaboration:</strong> shantanuiimu@gmail.com</p>
+</div>
+</section>
 
 <footer>
   <p>Built by <a href="https://shantanu9.github.io">Shantanu</a> — AI Product Manager · Azure AI Factory · <a href="mailto:shantanuiimu@gmail.com">shantanuiimu@gmail.com</a></p>
